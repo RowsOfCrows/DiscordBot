@@ -1,9 +1,9 @@
-import xmltodict
+#import xmltodict
 import TokensAndKeys
-from googleapiclient.discovery import build
+#from googleapiclient.discovery import build
 
 channelid="UCJMn0gckjHPGYtdoHozOW9A"
-service = build('youtube', 'v3',developerKey=TokensAndKeys.YoutubeApiKey)
+#service = build('youtube', 'v3',developerKey=TokensAndKeys.YoutubeApiKey)
 
 riotyoutubeID = "UC2t5bjwHdUX4vM2g8TRDq5g"
 youtuberss = "https://www.youtube.com/feeds/videos.xml?channel_id="
