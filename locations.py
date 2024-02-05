@@ -7,9 +7,11 @@ import datetime
 import urllib.parse
 import requests
 
+
 BingMapsKey="AoNl4tonPaHE_hQnTli8b9DmX41_gPDOKThNhhibNw6HkMUYXhsMl0KC_q9v63dV"
 rightnow = datetime.datetime.now()
 utctime = datetime.datetime.utcnow()
+
 
 def bingLocation(locationQuery, weatherResources=False, timezoneResources=False, realplace=False):
     if type(locationQuery) == str:
@@ -56,17 +58,17 @@ def convertTime(datetime_utc, timezoneid):
     return timezonenamecool
 
 def stringtime(place):
-    place2 = ' '.join(place)
+    place2 = ''.join(place) #I have no idea why I wrote this here or like this, it seems redundant but it works so I'm not touching it
 
     if "shugan".lower() == place2.lower():
         place2 = "Belgium"
     if "floyd".lower() == place2.lower():
         place2 = "Melbourne Australia"
+    if "moe".lower() == place2.lower():
+        place2 = "Maryland"
     print(place2)
     actualplace = bingLocation(place2,realplace=True)
     timethere = bingTimeZone(place2, True)
-    #if "taiwan" in place:
-    #    actualplace = "Taiwan"
     string = f"Time in {actualplace}: **{timethere}**"
 
     return string
@@ -76,17 +78,26 @@ def astralSunStuff(place):
     locato = LocationInfo('name','region','US/Central', coords["lat"], coords["long"])
     sunList = sun(locato.observer, date=datetime.date(rightnow.year, rightnow.month, rightnow.day))
     #print(sunList["sunrise"])  #utc
+    print("sunlist: ", sunList)
+
     timezonename = bingTimeZone(place) #get timezone
-    timezonename = urllib.parse.quote(timezonename)
+    timezonename = urllib.parse.quote(timezonename) #make it good for urls
     #import re
     #timezonename = re.sub("\s","_",timezonename)
     for keys, values in sunList.items():
         string = str(sunList[keys])
+
+        # Format the UTC time for conversion
         aroo = string[:10]+"T"+string[11:19]+"Z"
+
+        # Convert UTC time to the specified timezone
         gosh = convertTime(aroo, timezonename)
         gosh = gosh[11:-3]
+
+        # Format the time in 12-hour clock with AM/PM
         dt_object = datetime.datetime.strptime(gosh,"%H:%M")
-        fuck = dt_object.strftime("%I:%M %p").lstrip("0")
+        fuck = dt_object.strftime("aa%I:%M %p").lstrip("0")
+
         sunList.update({keys:fuck})
     sunApiPlace = requests.get(f"https://api.sunrise-sunset.org/json?lat={coords['lat']}&lng={coords['long']}&date=today")
     sunjson = sunApiPlace.json() if sunApiPlace and sunApiPlace.status_code == 200 else None
@@ -98,14 +109,6 @@ def astralSunStuff(place):
     #f'Sunset:  {s["sunset"]}\n'        #convert sunlist times to timezone times
     #f'Dusk:    {s["dusk"]}\n'
     return sunList
-
-
-def getweatherembed(place):
-    weatherstuff = bingLocation(place, weatherResources=True)   #get location and weather dict
-    sunstuff = astralSunStuff(place)                            #get sun dict
-    currenttime = bingTimeZone(place, True)
-    bloop = embededweather(weatherstuff, sunstuff, currenttime)  #pass dicts to embded
-    return bloop
 
 def weatherList(coordz, *Realplace):
     points = ','.join(str(e) for e in coordz)
@@ -171,8 +174,8 @@ def embededweather(weatherlist, sunstuff, currentlocaltime):
     else:
         emoji = "🌞"
     embededcool=discord.Embed(title=f"{daytimeEmoji} Weather in {weatherlist['place']} {daytimeEmoji}",
-    description=f"{emoji}   {weatherlist['shortForecast']} - {currentlocaltime}",
-    color=colorbe,
+                              description=f"{emoji}   {weatherlist['shortForecast']} - {currentlocaltime}",
+                              color=0x0057a0,
     )
     embededcool.add_field(name=f"{weatherlist['fTemp']}°F",#👉💨🌄⭐👀
                           value=f"Wind:\n"
@@ -185,4 +188,46 @@ def embededweather(weatherlist, sunstuff, currentlocaltime):
                                 f"{sunstuff['sunset']}\n️"
                                 f"{sunstuff['daylength']} hrs", inline=True)
     #embededcool.set_footer(text=f"👀👀👀👀👀")#{weatherlist['detailedForecast']}
+    embededcool.set_author(name="something")
     return embededcool
+
+async def getweatherembed(place):
+    weatherstuff = bingLocation(place, weatherResources=True)   #get location and weather dict
+    sunstuff = astralSunStuff(place)                            #get sun dict
+    currenttime = bingTimeZone(place, True)
+    print(weatherstuff,sunstuff,currenttime)
+    bloop = embededweather(weatherstuff, sunstuff, currenttime)  #pass dicts to embded
+    return bloop
+
+
+
+
+def createweatherembed(weatherlist, sunstuff, currentlocaltime):
+
+    pass
+
+async def getweatherembed2(place):
+    #weatherstuff = None
+    #sunstuff = None
+    #currenttime = None
+
+    dummyembed = discord.Embed(title="Title", description="Desc", color=0x0057a0)
+    dummyembedsuccess = discord.Embed(title="SUCCESS", description="SUCCESS", color=0x0057a0)
+
+    try:
+        weatherstuff = bingLocation(place, weatherResources=True)   #get location and weather dict
+        print("weather: ", weatherstuff)
+        sunstuff = astralSunStuff(place)                            #get sun dict
+        print("sunstuff: ",sunstuff)
+        currenttime = bingTimeZone(place, True)
+        print("currenttime: ", currenttime)
+    except Exception as e:
+        print("something didnt return prob", e)
+        return None
+    #print(weatherstuff,sunstuff,currenttime)
+
+    #thingo = embweatherconstruction(weatherstuff, sunstuff, currenttime)
+    return dummyembedsuccess
+
+#getweatherembed2("seattle")
+print(astralSunStuff("seattle"))

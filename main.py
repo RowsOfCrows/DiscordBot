@@ -1,97 +1,137 @@
-from discord.ext import commands
+
+#===== Discord.py imports ======
 import discord, logging
+from discord import app_commands
+from discord.ext import commands
 from discord.ext.commands import Bot
+from discord.ext import tasks
+
+#===== Python libraries ======
 import random
 import requests
-import asyncio
 import feedparser
-from discord.ext import tasks
+import asyncio
+
+#===== Other Files ======   
 import youtubestuff
 import locations
+import redditapi
 import TokensAndKeys
 
-logging.basicConfig(level=logging.INFO)
+#logging.basicConfig(level=logging.DEBUG)
+
+class MyClient(discord.Client): #bot initalization
+
+
+    def __init__(self, *, intents: discord.Intents):
+        super().__init__(intents=intents)
+        self.tree = app_commands.CommandTree(self)
+
+    async def setup_hook(self):
+        self.tree.copy_global_to(guild=guildobject)
+        await self.tree.sync(guild=guildobject)
 
 intents = discord.Intents.default()
 intents.message_content = True
+client = MyClient(intents=intents)
+#client = commands.Bot(command_prefix = '.', intents=intents)
+#client.remove_command('help')
 
-#client = discord.Client(intents=intents)
+guildobject = discord.Object(id=1201960481162530846) #jack server
+moeid = client.get_user(98200277580009472)
 
-bot = commands.Bot(command_prefix=",", intents=intents)
-#tree = discord.app_commands.CommandTree(bot)
-#client = discord.Client()
-moeid = 98200277580009472
-guildid = 1201960481162530846 #jack server
 
-@bot.event
+@client.event
 async def on_ready():
-    print(f'Bot connected as {bot.user}')
-    await bot.tree.sync()
-    await bot.tree.sync(guild=discord.Object(id=guildid))
-
+    print(f'Bot connected as {client.user} (ID: {client.user.id})')
+    await client.change_presence(activity=discord.Game('Very good boy'))
+    print('------')
+    #asyncio.create_task(redditapi.monitor_submissions())
+    #redditapi.calendardm(moeid)
     #dmtest.start()
-    await bot.change_presence(activity=discord.Game('Very good boy'))
+ 
 
-#@tasks.loop(seconds=15)
-#async def dmtest():
-#    await bot.get_user(moeid).send("woof")
+#===================
+#-------new tree stuff
+#===================
+
+@client.tree.command(name="time", description="the local time of any place!")
+async def time(interaction: discord.Interaction, location: str):
+    eee = locations.stringtime(location)
+    await interaction.response.send_message(eee)
+
+@client.tree.command(name="weatherpls", description="weather but only in america because the api said so")
+async def weather(interaction: discord.Interaction, place: str):
+
+    await interaction.response.defer()#wait longer than 3 seconds ty
+    #thingo = await locations.getweatherembed2(place)
+    try:
+        embe = await locations.getweatherembed(place)
+    except:
+        await interaction.followup.send(f"> **{place}** couldn't be found in the search. "
+                                        f"The Weather module can only do locations in America because that's what the weather man tells me")
+        return
+    await interaction.followup.send(embed=embe)
+    #await interaction.response.send_message("done",ephemeral=True)
+
+
+#@client.tree.command(name="weatherthingnew", description="weather but only in america because the api said so")
+#async def weatherthingnew(interaction: discord.Interaction, place: str):
+#    await interaction.response.defer()#wait longer than 3 seconds ty
 #
+#    embe = None
+#    #thingo = await locations.getweatherembed2(place)
+#    try:
+#        embe = await locations.getweatherembed(place)
+#        ephr = False
+#    except:
+#        ephr = True
+#
+#    await interaction.followup.send("", ephemeral=True)#embed=embe, ephemeral=ephr
 
-@bot.command(brief="syntax: .weather place")
-async def weather(ctx, *place):
-    temp = locations.getweatherembed(place)
-    await ctx.send(embed=temp)
 
-
-@bot.command(brief="syntax .time place", description="very cool")
-async def time(ctx, *place):
-    eee = locations.stringtime(place)
-    await ctx.send(eee)
-
-@bot.command(brief="searches youtube",description="not very cool")
-async def yt(ctx, *search):
-    cool = youtubestuff.yt_search(search)
-    await ctx.send(cool)
-
-@bot.command(brief="rss test")
-async def heck(ctx):
-    cool = youtubestuff.rsstest()
-    await ctx.send(cool)
-
-@bot.tree.command(name="time", description="time!")
+@client.tree.command(name="ping", description="return bot latency")
 async def ping(interaction):
-    bot_latency = round(bot.latency * 1000)
+    bot_latency = round(client.latency * 1000)
     await interaction.response.send_message(f"Response time: {bot_latency}ms.")
 
-@bot.tree.command(name="ping", description="return bot latency")
-async def ping(interaction):
-    bot_latency = round(bot.latency * 1000)
-    await interaction.response.send_message(f"Response time: {bot_latency}ms.")
 
-#@tasks.loop()
-#async def dmtest(member: discord.Member, *, content):
-#    channel = await member.create_dm()
-#    await channel.send("cool")
+#========dm testing
+@client.tree.command(name="semddmnewtest", description="will dm you like a good boye")
+async def senddmtest(interaction:discord.Interaction):
+
+    user_id = interaction.user
+    messageid = interaction.id
+    #user = client.get_user(user_id)
+
+    channel = await user_id.create_dm()
+    await channel.send("woof")
+    await interaction.response.send_message("done",ephemeral=True)
 
 
+#========Reddit new and hot
+@client.tree.command(name="reddithotpost", description="will post a hot post from the desired subreddit")
+async def reddithot(interaction:discord.Interaction, subreddit: str):
+    embedthis = await redditapi.posthot(subreddit)
+    await interaction.response.send_message(embed=embedthis)
 
-bot.run(TokensAndKeys.discotoken)
+@client.tree.command(name="redditnewpost", description="will post the newest post from the desired subreddit")
+async def redditnew(interaction:discord.Interaction, subreddit: str):
+    embedthis = await redditapi.postnewest(subreddit)
+    await interaction.response.send_message(embed=embedthis)
 
-#@client.command()
-#async def senddm(ctx):
-#    user_id = ctx.author.id
-#    user = bot.get_user(user_id)
-#    channel = await user.create_dm()
-#    await channel.send("woof")
-#
-#@client.command()
-#async def deletestupidhistory(ctx):
-#    print("something")
-#    user_id = ctx.author.id
-#    user = client.get_user(user_id)
-#    if user:
-#        channel = await user.create_dm()
-#        async for message in channel.history(limit=None):
-#            if message.author.bot:
-#                await message.delete()
-#
+#========Reddit dm test
+@client.tree.command(name="calendar", description="dms u todays day picture")
+async def reddittest(interaction:discord.Interaction):
+    await redditapi.testdmme(interaction.user)
+    await interaction.response.send_message("done", ephemeral=True)
+
+
+#@client.command(brief="syntax .time place", description="very cool")
+#async def time(ctx, *place):
+#    eee = locations.stringtime(place)
+#    await ctx.send(eee)
+
+client.run(TokensAndKeys.discotoken)
+
+ 
