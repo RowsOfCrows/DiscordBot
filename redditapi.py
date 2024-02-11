@@ -53,7 +53,7 @@ async def testdmme(theuser):
 
 async def createredditembed(redditpost): #the most clear name in the history of me naming anything
     
-    randomhexcolor = int("%06x" % random.randint(0, 0xFFFFFF), 16)
+    #randomhexcolor = int("%06x" % random.randint(0, 0xFFFFFF), 16)
 
     dt_object = datetime.datetime.utcfromtimestamp(redditpost.created_utc)
     formatted_time = dt_object.strftime('%#m/%#d/%Y %#I:%M%p')
@@ -61,7 +61,7 @@ async def createredditembed(redditpost): #the most clear name in the history of 
     embedthis = discord.Embed(title=f"{redditpost.title}",
                               url=f"{redditpost.url}",
                               #description="description",
-                              color=randomhexcolor)
+                              color=0xff782b)
     if redditpost.url.endswith(('.jpg', '.jpeg', '.png', '.gif')):
         embedthis.set_image(url=redditpost.url)
     else:

@@ -3,231 +3,267 @@ import discord
 import random
 from astral import LocationInfo
 from astral.sun import sun
-import datetime
+from datetime import datetime, timedelta
 import urllib.parse
+import TokensAndKeys
 import requests
 
 
-BingMapsKey="AoNl4tonPaHE_hQnTli8b9DmX41_gPDOKThNhhibNw6HkMUYXhsMl0KC_q9v63dV"
-rightnow = datetime.datetime.now()
-utctime = datetime.datetime.utcnow()
 
+BingMapsKey = TokensAndKeys.bingmapsApiKey
+weatherapidotcomkey = TokensAndKeys.WeatherApiDotComKey 
+rightnow = datetime.now()
+utctime = datetime.utcnow()
 
-def bingLocation(locationQuery, weatherResources=False, timezoneResources=False, realplace=False):
+emojiDict={
+    "Moon": "🌙",
+    "Night":"🌃",
+    "Mostly_Cloudy": "⛅️️",
+    "Partly_Cloudy": "🌤️",
+    "Cloudy": "☁️",
+    "Overcast": "☁️",
+    "Sunny": "🌞",
+    "Rainbow": "🌈",
+    "Snowflake": "❄️",
+    "Snowing": "🌨",
+    "Raining": "🌧",
+    "raining2": "☔️",
+    "snowlist": ["❄️", "☃️", "⛄️", "🌨"],
+    "rainlist": ["🌧", "☔️", "💦", "💧"]
+}
+
+#=========
+
+async def bingGetLocationDataByQuery(locationQuery):
     if type(locationQuery) == str:
         cool = locationQuery
     else:
-        cool = ' '.join(locationQuery)
+        cool = ''.join(locationQuery)
     bingplace = requests.get(f"http://dev.virtualearth.net/REST/v1/Locations?query={cool}&key={BingMapsKey}")
-    #print(f"http://dev.virtualearth.net/REST/v1/Locations?query={locationQuery}&key={BingMapsKey}")
-    bingjson = bingplace.json() if bingplace and bingplace.status_code == 200 else None
-    coordlist = bingjson["resourceSets"][0]["resources"][0]["point"]["coordinates"]
-    actualplace = bingjson["resourceSets"][0]["resources"][0]["name"]
-    if realplace:
-        return actualplace
-    if weatherResources:
-        return weatherList(coordlist, actualplace)
-    #if timezoneResources:
-    #    #return bingtimezone(coordlist)
-    #    pass
-    coordDict ={"lat": coordlist[0], "long": coordlist[1]}
-    return coordDict
+    #print(f"http://dev.virtualearth.net/REST/v1/Locations?query={cool}&key={BingMapsKey}")
+    bingjsondata = bingplace.json() if bingplace and bingplace.status_code == 200 else None
+    return bingjsondata
 
+async def bingGetLocationDataByCoords(lat,long):
+    
+    bingplace = requests.get(f"http://dev.virtualearth.net/REST/v1/Locations/{lat},{long}?&key={BingMapsKey}")
+    bingjsondata = bingplace.json() if bingplace and bingplace.status_code == 200 else None
+    print(f"http://dev.virtualearth.net/REST/v1/Locations/{lat},{long}?&key={BingMapsKey}")
+    #http://dev.virtualearth.net/REST/v1/Locations/47.60322952,-122.33027649?&key=AuQX5ztwTTNpJ0flr2pxkaWz_EJSdujIZvz91VBHTw4oFo39aa6hXdyJinlUiw54
+    return bingjsondata
 
+async def bingGetNameOfLocation(bingdata):
+    nameofplace = bingdata["resourceSets"][0]["resources"][0]["name"]
+    return nameofplace
 
-def bingTimeZone(placefornow, placecurrenttime=False):
-    coord = bingLocation(placefornow)
-    timezoneurl = requests.get(f"https://dev.virtualearth.net/REST/v1/TimeZone/{coord['lat']},{coord['long']}?&key={BingMapsKey}") #?datetime={datetime_utc}
+async def bingGetCoords(bingdata):
+    coordlist = bingdata["resourceSets"][0]["resources"][0]["point"]["coordinates"]
+    return coordlist
+
+async def bingLocalTime(lat,long):
+    timezoneurl = requests.get(f"https://dev.virtualearth.net/REST/v1/TimeZone/{lat},{long}?&key={BingMapsKey}") #?datetime={datetime_utc}
+    #print(f"https://dev.virtualearth.net/REST/v1/TimeZone/{coord[0]},{coord[1]}?&key={BingMapsKey}")
     timezonejson = timezoneurl.json() if timezoneurl and timezoneurl.status_code == 200 else None
-    timezoneName = timezonejson["resourceSets"][0]["resources"][0]["timeZone"]["genericName"]
-    timezoneAbbrev = timezonejson["resourceSets"][0]["resources"][0]["timeZone"]["genericName"]
-    offsetnumber = timezonejson["resourceSets"][0]["resources"][0]["timeZone"]["utcOffset"]
-    if placecurrenttime:
-        localtimecool = timezonejson["resourceSets"][0]["resources"][0]["timeZone"]["convertedTime"]["localTime"]
-        #dt_string = "2020-12-18 3:11:09"
-        dt_object = datetime.datetime.strptime(localtimecool, "%Y-%m-%dT%H:%M:%S")
-        #dt = dt.replace(tzinfo=timezone.utc)
-        formattedtime = dt_object.strftime(f"%I:%M %p").lstrip("0")#- {timezoneAbbrev}
-        return formattedtime
-    return timezoneName
 
-def convertTime(datetime_utc, timezoneid):
-    url = requests.get(f"https://dev.virtualearth.net/REST/v1/TimeZone/Convert/?datetime={datetime_utc}&desttz={timezoneid}&key={BingMapsKey}")
-    jayson =  url.json() if url and url.status_code == 200 else None
-    timezonenamecool = jayson["resourceSets"][0]["resources"][0]["timeZone"]["convertedTime"]["localTime"]
-    return timezonenamecool
+    timezoneNameAbbrev = timezonejson["resourceSets"][0]["resources"][0]["timeZone"]["abbreviation"]   
 
-def stringtime(place):
+    localtime = timezonejson["resourceSets"][0]["resources"][0]["timeZone"]["convertedTime"]["localTime"] #dt_string = "2020-12-18 3:11:09"
+    dt_object = datetime.strptime(localtime, "%Y-%m-%dT%H:%M:%S")
+    formattedlocaltime = dt_object.strftime(f"%#I:%M %p")
+    timeWithAbbrev = f"{formattedlocaltime} {timezoneNameAbbrev}"
+
+    return formattedlocaltime, timezoneNameAbbrev
+
+#===========
+
+async def getTimeString(place):
     place2 = ''.join(place) #I have no idea why I wrote this here or like this, it seems redundant but it works so I'm not touching it
-
+    
     if "shugan".lower() == place2.lower():
         place2 = "Belgium"
     if "floyd".lower() == place2.lower():
         place2 = "Melbourne Australia"
     if "moe".lower() == place2.lower():
         place2 = "Maryland"
-    print(place2)
-    actualplace = bingLocation(place2,realplace=True)
-    timethere = bingTimeZone(place2, True)
-    string = f"Time in {actualplace}: **{timethere}**"
-
+    
+    bingdata = bingGetLocationDataByQuery(place2)
+    placename = bingGetNameOfLocation(bingdata)
+    coordlist = bingGetCoords(bingdata)
+    timethere, abbrev = bingLocalTime(*coordlist)
+    string = f"Time in {placename}: **{timethere}** {abbrev}"
+     
     return string
 
-def astralSunStuff(place):
-    coords = bingLocation(place, timezoneResources=True)
-    locato = LocationInfo('name','region','US/Central', coords["lat"], coords["long"])
-    sunList = sun(locato.observer, date=datetime.date(rightnow.year, rightnow.month, rightnow.day))
-    #print(sunList["sunrise"])  #utc
-    print("sunlist: ", sunList)
+async def astralSunStuff(coords):
 
-    timezonename = bingTimeZone(place) #get timezone
-    timezonename = urllib.parse.quote(timezonename) #make it good for urls
-    #import re
-    #timezonename = re.sub("\s","_",timezonename)
-    for keys, values in sunList.items():
-        string = str(sunList[keys])
+    #astral gives you some sun stats with datetime values
+    #I reput them in as formatted times that make peoples eyes heal
+    locato = LocationInfo('name','region','US/Central', coords[0], coords[1])
+    rawSunInfo = sun(locato.observer, date=datetime(rightnow.year, rightnow.month, rightnow.day))#print("sunlist: ", rawSunInfo) #{'dawn': datetime.datetime(2024, 2, 5, 14, 57, 53, 300320, tzinfo=datetime.timezone.utc)}
+    sunInfo = {key: value.strftime('%#I:%M%p') for key, value in rawSunInfo.items()}
 
-        # Format the UTC time for conversion
-        aroo = string[:10]+"T"+string[11:19]+"Z"
-
-        # Convert UTC time to the specified timezone
-        gosh = convertTime(aroo, timezonename)
-        gosh = gosh[11:-3]
-
-        # Format the time in 12-hour clock with AM/PM
-        dt_object = datetime.datetime.strptime(gosh,"%H:%M")
-        fuck = dt_object.strftime("aa%I:%M %p").lstrip("0")
-
-        sunList.update({keys:fuck})
-    sunApiPlace = requests.get(f"https://api.sunrise-sunset.org/json?lat={coords['lat']}&lng={coords['long']}&date=today")
+    #get day length and put it in the suninfo dict
+    sunApiPlace = requests.get(f"https://api.sunrise-sunset.org/json?lat={coords[0]}&lng={coords[1]}&date=today")
     sunjson = sunApiPlace.json() if sunApiPlace and sunApiPlace.status_code == 200 else None
-    daylength = sunjson["results"]['day_length']
-    sunList["daylength"] = daylength[:-3].lstrip("0")
-    #f'Dawn:    {s["dawn"]}\n'
-    #f'Sunrise: {s["sunrise"]}\n'       #convert time- get time, compare, put it back in
-    #f'Noon:    {s["noon"]}\n'          #insert time
-    #f'Sunset:  {s["sunset"]}\n'        #convert sunlist times to timezone times
-    #f'Dusk:    {s["dusk"]}\n'
-    return sunList
+    daylengthraw = sunjson["results"]['day_length'] # 09:51:59 h m s
+    parse = datetime.strptime(daylengthraw, "%H:%M:%S")
+    daylength = parse.strftime("%#Hh %Mm")
+    sunInfo["daylength"] = daylength
+    #f'Dawn:    {sunInfo["dawn"]}\n'
+    #f'Sunrise: {sunInfo["sunrise"]}\n'
+    #f'Noon:    {sunInfo["noon"]}\n'  
+    #f'Sunset:  {sunInfo["sunset"]}\n'
+    #f'Dusk:    {sunInfo["dusk"]}\n'
+    return sunInfo
 
-def weatherList(coordz, *Realplace):
-    points = ','.join(str(e) for e in coordz)
-    weatherpoints = requests.get(f'https://api.weather.gov/points/{points}')
-    weatherjson = weatherpoints.json() if weatherpoints and weatherpoints.status_code == 200 else None
-    placeurl = weatherjson["properties"]["forecast"]
-    forecasturl = requests.get(placeurl)
-    forecastjson = forecasturl.json() if forecasturl and forecasturl.status_code == 200 else None
-    weatherNow = forecastjson["properties"]["periods"][0]
+
+
+########################
+#   new weather stuff  #
+########################
+
+async def getWeatherapidotcomData(query): #city name, Latitude/Longitude (decimal degree), US Zipcode, UK Postcode, Canada Postalcode, IP address, 
+    response = requests.get(f"http://api.weatherapi.com/v1/forecast.json?key={weatherapidotcomkey}&q={query}&days=2&aqi=no&alerts=no")
+    weatherjson = response.json() if response and response.status_code == 200 else None
+
     weatherDict = {}
-    if Realplace:
-        weatherDict['place'] = Realplace[0]
-    weatherDict['cTemp'] = int((int(weatherNow["temperature"]) - 32) * 5/9)
-    weatherDict['fTemp'] = weatherNow["temperature"]
-    weatherDict['windSpeed'] = weatherNow["windSpeed"]
-    weatherDict['windDirection'] = weatherNow["windDirection"]
-    weatherDict['shortForecast'] = weatherNow["shortForecast"]
-    weatherDict['isDaytime'] = weatherNow["isDaytime"]
-    weatherDict['detailedForecast'] = weatherNow['detailedForecast']
+    weatherDict['Location'] = weatherjson['location']['name']
+    weatherDict['region'] = weatherjson['location']['region']
+    weatherDict['country'] = weatherjson['location']['country']
+    weatherDict['lat'] = weatherjson['location']['lat']
+    weatherDict['long'] = weatherjson['location']['lon']
+    weatherDict['is_day'] = weatherjson['current']['is_day']
+    weatherDict['localtime'] = datetime.strptime(weatherjson['location']['localtime'], "%Y-%m-%d %H:%M").strftime("%#I:%M %p")
+
+    weatherDict['temp_f'] = int(weatherjson['current']['temp_f'])
+    weatherDict['temp_c'] = int(weatherjson['current']['temp_c'])
+    weatherDict['feelslike_c'] = int(weatherjson['current']['feelslike_c'])
+    weatherDict['feelslike_f'] = int(weatherjson['current']['feelslike_f'])
+    weatherDict['hightemp_f'] = int(weatherjson['forecast']['forecastday'][0]['day']['maxtemp_f'])
+    weatherDict['hightemp_c'] = int(weatherjson['forecast']['forecastday'][0]['day']['maxtemp_c'])
+    weatherDict['lowtemp_f'] = int(weatherjson['forecast']['forecastday'][0]['day']['mintemp_f'])
+    weatherDict['lowtemp_c'] = int(weatherjson['forecast']['forecastday'][0]['day']['mintemp_c'])
+
+
+    weatherDict['wind_mph'] = weatherjson['current']['wind_mph']
+    weatherDict['wind_kph'] = weatherjson['current']['wind_kph']
+    weatherDict['wind_dir'] = weatherjson['current']['wind_dir']
+
+    weatherDict['humidity'] = weatherjson['current']['humidity']
+    weatherDict['cloud'] = weatherjson['current']['cloud']
+
+    weatherDict['textcondition'] = weatherjson['current']['condition']['text']
+    weatherDict['icon'] = weatherjson['current']['condition']['icon']
+
+    weatherDict['sunrise'] = weatherjson['forecast']['forecastday'][0]['astro']['sunrise'].lstrip('0')
+    weatherDict['sunset'] = weatherjson['forecast']['forecastday'][0]['astro']['sunset'].lstrip('0')
+    weatherDict['moon_phase'] = weatherjson['forecast']['forecastday'][0]['astro']['moon_phase']
+    weatherDict['moon_illumination'] = weatherjson['forecast']['forecastday'][0]['astro']['moon_illumination']
+
     return weatherDict
-    #   weatherNow includes:
-    #       "number": 1,
-    #       "name": "Tonight",
-    #       "startTime": "2021-11-04T22:00:00-04:00",
-    #       "endTime": "2021-11-05T06:00:00-04:00",
-    #       "isDaytime": false,
-    #       "temperature": 31,
-    #       "temperatureUnit": "F",
-    #       "temperatureTrend": null,
-    #       "windSpeed": "5 mph",
-    #       "windDirection": "N",
-    #       "icon": "https://api.weather.gov/icons/land/night/skc?size=medium",
-    #       "shortForecast": "Clear",
-    #       "detailedForecast": "Clear, with a low around 31. North wind around 5 mph."
 
-def embededweather(weatherlist, sunstuff, currentlocaltime):
+async def sunDayLength(lat, long):
 
-    if weatherlist['isDaytime']:
-        colorbe =0x00d5ff
-        daytimeEmoji = "🌞"
-    else:
-        colorbe = 0x0057a0
-        daytimeEmoji = "🌝"
+    sunApiPlace = requests.get(f"https://api.sunrise-sunset.org/json?lat={lat}&lng={long}&date=today")
+    sunjson = sunApiPlace.json() if sunApiPlace and sunApiPlace.status_code == 200 else None
+    daylengthraw = sunjson["results"]['day_length'] # 09:51:59 h m s
+    parse = datetime.strptime(daylengthraw, "%H:%M:%S")
+    daylength = parse.strftime("%#Hh %Mm")
+    return daylength
 
-
-    if [x for x in list(weatherlist.values()) if 'Rain' in str(x)]:
-        rainlist = ["🌧", "☔️", "💦", "💧"]
-        rainlistresult = random.randint(0,(len(rainlist)-1))
-        emoji = rainlist[rainlistresult]
-    elif [x for x in list(weatherlist.values()) if 'Snow' in str(x)]:
-        snowlist = ["❄️", "☃️", "⛄️", "🌨"]
-        snowlistresult = random.randint(0,(len(snowlist)-1))
-        emoji = snowlist[snowlistresult]
-    elif [x for x in list(weatherlist.values()) if 'Cloudy' in str(x)]:
-        if 'Mostly' in list(weatherlist.values()):
-            emoji = "⛅️️"
-        elif 'Partly' in list(weatherlist.values()):
-            emoji = "🌤️"
-        else:
-            emoji = "☁️"
-    elif [x for x in list(weatherlist.values()) if 'Clear' in str(x)]:
-        emoji = "🌈"
-    else:
-        emoji = "🌞"
-    embededcool=discord.Embed(title=f"{daytimeEmoji} Weather in {weatherlist['place']} {daytimeEmoji}",
-                              description=f"{emoji}   {weatherlist['shortForecast']} - {currentlocaltime}",
-                              color=0x0057a0,
-    )
-    embededcool.add_field(name=f"{weatherlist['fTemp']}°F",#👉💨🌄⭐👀
-                          value=f"Wind:\n"
-                                f"Sunrise:\n"
-                                f"Sunset:\n"
-                                f"Day length:", inline=True)
-    embededcool.add_field(name=f"{weatherlist['cTemp']}°C",
-                          value=f"{weatherlist['windSpeed']}, {weatherlist['windDirection']}\n"
-                                f"{sunstuff['sunrise']}\n"
-                                f"{sunstuff['sunset']}\n️"
-                                f"{sunstuff['daylength']} hrs", inline=True)
-    #embededcool.set_footer(text=f"👀👀👀👀👀")#{weatherlist['detailedForecast']}
-    embededcool.set_author(name="something")
-    return embededcool
-
-async def getweatherembed(place):
-    weatherstuff = bingLocation(place, weatherResources=True)   #get location and weather dict
-    sunstuff = astralSunStuff(place)                            #get sun dict
-    currenttime = bingTimeZone(place, True)
-    print(weatherstuff,sunstuff,currenttime)
-    bloop = embededweather(weatherstuff, sunstuff, currenttime)  #pass dicts to embded
-    return bloop
-
-
-
-
-def createweatherembed(weatherlist, sunstuff, currentlocaltime):
-
-    pass
-
-async def getweatherembed2(place):
-    #weatherstuff = None
-    #sunstuff = None
-    #currenttime = None
-
-    dummyembed = discord.Embed(title="Title", description="Desc", color=0x0057a0)
-    dummyembedsuccess = discord.Embed(title="SUCCESS", description="SUCCESS", color=0x0057a0)
-
+async def getWeatherMsg(place):
+    #bingdata = bingGetLocationData(place)
+    #nameofplace = bingGetNameOfLocation(bingdata)
+    
     try:
-        weatherstuff = bingLocation(place, weatherResources=True)   #get location and weather dict
-        print("weather: ", weatherstuff)
-        sunstuff = astralSunStuff(place)                            #get sun dict
-        print("sunstuff: ",sunstuff)
-        currenttime = bingTimeZone(place, True)
-        print("currenttime: ", currenttime)
+        weatherdata = getWeatherapidotcomData(place)
+        #currentlocationtime = bingLocalTime(bingdata)     
     except Exception as e:
-        print("something didnt return prob", e)
-        return None
-    #print(weatherstuff,sunstuff,currenttime)
+        print("something didnt return prob: ", e)
+        return #"something fuck up lol"
 
-    #thingo = embweatherconstruction(weatherstuff, sunstuff, currenttime)
-    return dummyembedsuccess
+    thingo =  (f"Weather in **{weatherdata['Location']}**\n"
+               f"{weatherdata['condition']}\n"
+               f"Temperature: {weatherdata['temp_f']}, {weatherdata['temp_c']}\n"
+               f"Feels Like: {weatherdata['feelslike_f']}, {weatherdata['feelslike_c']}\n"
+               f"Wind: {weatherdata['wind_mph']} mph, {weatherdata['wind_kph']} kph {weatherdata['wind_dir']}\n"
+               ""
+               #f"precipitation: {weatherdata['precipitation']}\n"
+               #f"rain: {weatherdata['rain']}\n"
+               #f"showers: {weatherdata['showers']}\n"
+               #f"snowfall: {weatherdata['snowfall']}\n"
+               
+              )
+              #{sundata}
+              #{currentlocationtime}"f"snowdepth: {weatherdata['snowdepth']}\n"
 
-#getweatherembed2("seattle")
-print(astralSunStuff("seattle"))
+    return thingo
+
+async def createweatherembed(place):
+
+    weatherdata = await getWeatherapidotcomData(place)
+    daylength = await sunDayLength(weatherdata['lat'],weatherdata['long'])
+
+    if weatherdata['is_day'] == 1:
+        daytimehexcolor=0x0ba4ff
+    else:
+        daytimehexcolor=0x2d626b
+    
+    fulllocation = (f"{weatherdata['Location']}, {weatherdata['region']},\n{weatherdata['country']}")
+    
+
+    
+    if weatherdata['textcondition'] == emojiDict:
+        emoji = emojiDict[weatherdata['textcondition']]
+    elif weatherdata['is_day'] == 1:
+        emoji = emojiDict['Sunny']
+    else:
+        emoji = emojiDict['Moon']
+
+
+
+    try: 
+        weatherembed = discord.Embed(title=f"Weather in\n{fulllocation}", 
+                                     url="", 
+                                     description=f"**{emoji} {weatherdata['textcondition']} {emoji}**", 
+                                     color=daytimehexcolor)
+        #weatherembed.set_author(name=f"someone", 
+        #                    url="", 
+        #                    icon_url=f"https:{weatherdata['icon']}")
+
+        weatherembed.add_field(name="Current Temperature",
+                                value=f"``` {weatherdata['temp_f']}°F   {weatherdata['temp_c']}°C```", inline=False)        
+
+        weatherembed.add_field(name="Feels Like",
+                                value=f"``` {weatherdata['feelslike_f']}°F   {weatherdata['feelslike_c']}°C```", inline=False)
+        
+        weatherembed.add_field(name="⬆ High • Low ⬇",
+                        value=f"``` {weatherdata['hightemp_f']}°F   {weatherdata['lowtemp_f']}°F\n"
+                              f" {weatherdata['hightemp_c']}°C   {weatherdata['lowtemp_c']}°C```\n",
+                        inline=False)
+
+        #weatherembed.add_field(name="\u200B", value="\u200B")
+        
+
+        weatherembed.add_field(name="💨 Wind Speed  •  Wind Direction 💨",
+                                value=f"``` {weatherdata['wind_mph']}mph   {weatherdata['wind_kph']}kph   {weatherdata['wind_dir']}```", inline=False)
+        
+        weatherembed.add_field(name="",
+                                value=f"```   ```", inline=False)
+        
+
+        weatherembed.add_field(name="",
+                        value=f"Sunrise: {weatherdata['sunrise']}\n"
+                                f"Sunset:  {weatherdata['sunset']}\n"
+                                f"Day Length: {daylength}\n"
+                            )
+        #weatherembed.add_field(name="\u200B", value="\u200B", inline=False)
+#
+
+        
+
+    except Exception as e:
+        print("createweatherembed failed: ", e)
+    return weatherembed
+
+

@@ -12,13 +12,14 @@ import requests
 import feedparser
 import asyncio
 
+
 #===== Other Files ======   
 import youtubestuff
 import locations
 import redditapi
 import TokensAndKeys
 
-#logging.basicConfig(level=logging.DEBUG)
+logging.basicConfig(level=logging.DEBUG)
 
 class MyClient(discord.Client): #bot initalization
 
@@ -41,6 +42,9 @@ guildobject = discord.Object(id=1201960481162530846) #jack server
 moeid = client.get_user(98200277580009472)
 
 
+
+
+
 @client.event
 async def on_ready():
     print(f'Bot connected as {client.user} (ID: {client.user.id})')
@@ -54,47 +58,38 @@ async def on_ready():
 #===================
 #-------new tree stuff
 #===================
-
-@client.tree.command(name="time", description="the local time of any place!")
-async def time(interaction: discord.Interaction, location: str):
-    eee = locations.stringtime(location)
-    await interaction.response.send_message(eee)
-
-@client.tree.command(name="weatherpls", description="weather but only in america because the api said so")
-async def weather(interaction: discord.Interaction, place: str):
-
-    await interaction.response.defer()#wait longer than 3 seconds ty
-    #thingo = await locations.getweatherembed2(place)
-    try:
-        embe = await locations.getweatherembed(place)
-    except:
-        await interaction.followup.send(f"> **{place}** couldn't be found in the search. "
-                                        f"The Weather module can only do locations in America because that's what the weather man tells me")
-        return
-    await interaction.followup.send(embed=embe)
-    #await interaction.response.send_message("done",ephemeral=True)
-
-
-#@client.tree.command(name="weatherthingnew", description="weather but only in america because the api said so")
-#async def weatherthingnew(interaction: discord.Interaction, place: str):
-#    await interaction.response.defer()#wait longer than 3 seconds ty
-#
-#    embe = None
-#    #thingo = await locations.getweatherembed2(place)
-#    try:
-#        embe = await locations.getweatherembed(place)
-#        ephr = False
-#    except:
-#        ephr = True
-#
-#    await interaction.followup.send("", ephemeral=True)#embed=embe, ephemeral=ephr
-
-
 @client.tree.command(name="ping", description="return bot latency")
 async def ping(interaction):
     bot_latency = round(client.latency * 1000)
     await interaction.response.send_message(f"Response time: {bot_latency}ms.")
 
+
+@client.tree.command(name="time", description="the local time of any place!")
+async def time(interaction: discord.Interaction, location: str):
+    eee = locations.getTimeString(location)
+    await interaction.response.send_message(eee)
+
+#========= Weather
+@client.tree.command(name="weather", description="your local weather, right now")
+async def weather(interaction: discord.Interaction, place: str):
+
+    await interaction.response.defer()#wait longer than 3 seconds ty
+    #weathermsg = "frick1"
+    
+
+    weathermsg = await locations.createweatherembed(place)
+
+        #await interaction.followup.send(f"**{place}** couldn't be found in the search.\n",
+        #                                f"Maybe it's not a real place? or maybe you typo'd it so badly that you're getting this error")
+    
+    #if weathermsg == type(discord.Embed()):
+    #    await interaction.followup.send(embed=weathermsg)
+    #else:
+    #    await interaction.followup.send(weathermsg)
+    await interaction.followup.send(embed=weathermsg)
+
+
+    
 
 #========dm testing
 @client.tree.command(name="semddmnewtest", description="will dm you like a good boye")
@@ -108,6 +103,38 @@ async def senddmtest(interaction:discord.Interaction):
     await channel.send("woof")
     await interaction.response.send_message("done",ephemeral=True)
 
+#========Reddit dm test
+@client.tree.command(name="calendar", description="dms you todays day picture")
+async def reddittest(interaction:discord.Interaction):
+    await redditapi.testdmme(interaction.user)
+    await interaction.response.send_message("done", ephemeral=True)
+
+
+
+
+@client.tree.command(name="weatherdepreciated", description="weather but only in america because the api said so")
+async def weather(interaction: discord.Interaction, place: str):
+
+    await interaction.response.defer()#wait longer than 3 seconds ty
+    #thingo = await locations.getweatherembed2(place)
+    try:
+        embe = await locations.getweatherembed(place)
+    except:
+        await interaction.followup.send(f"> **{place}** couldn't be found in the search. "
+                                        f"The Weather module can only do locations in America because that's what the weather man tells me")
+        return
+    await interaction.followup.send(embed=embe)
+
+
+
+@client.tree.command(name="weathertestdataget", description="g")
+async def weathergfdg(interaction: discord.Interaction, place: str):
+    thing = await locations.getWeatherapidotcomData(place)
+    print(thing)
+    await interaction.response.send_message("done", ephemeral=True)
+
+
+
 
 #========Reddit new and hot
 @client.tree.command(name="reddithotpost", description="will post a hot post from the desired subreddit")
@@ -120,18 +147,18 @@ async def redditnew(interaction:discord.Interaction, subreddit: str):
     embedthis = await redditapi.postnewest(subreddit)
     await interaction.response.send_message(embed=embedthis)
 
-#========Reddit dm test
-@client.tree.command(name="calendar", description="dms u todays day picture")
-async def reddittest(interaction:discord.Interaction):
-    await redditapi.testdmme(interaction.user)
-    await interaction.response.send_message("done", ephemeral=True)
+#==========
 
 
+client.run(TokensAndKeys.discotoken)
+
+
+
+# old commands, this wont work because for some reason the slash commands 
+# dont sync with guild when you use client.command stuff
 #@client.command(brief="syntax .time place", description="very cool")
 #async def time(ctx, *place):
 #    eee = locations.stringtime(place)
 #    await ctx.send(eee)
-
-client.run(TokensAndKeys.discotoken)
 
  
