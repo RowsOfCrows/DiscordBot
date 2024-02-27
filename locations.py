@@ -16,17 +16,18 @@ rightnow = datetime.now()
 utctime = datetime.utcnow()
 
 emojiDict={
-    "Moon": "🌙",
-    "Night":"🌃",
-    "Mostly_Cloudy": "⛅️️",
-    "Partly_Cloudy": "🌤️",
-    "Cloudy": "☁️",
-    "Overcast": "☁️",
-    "Sunny": "🌞",
+    "moon": "🌙",
+    "night":"🌃",
+    "mostly Cloudy": "⛅️️",
+    "partly Cloudy": "🌤️",
+    "cloudy": "☁️",
+    "overcast": "☁️",
+    "sunny": "🌞",
+    "mist":"🌫",
     "Rainbow": "🌈",
-    "Snowflake": "❄️",
-    "Snowing": "🌨",
-    "Raining": "🌧",
+    "snowflake": "❄️",
+    "snowing": "🌨",
+    "raining": "🌧",
     "raining2": "☔️",
     "snowlist": ["❄️", "☃️", "⛄️", "🌨"],
     "rainlist": ["🌧", "☔️", "💦", "💧"]
@@ -127,38 +128,43 @@ async def getWeatherapidotcomData(query): #city name, Latitude/Longitude (decima
     weatherjson = response.json() if response and response.status_code == 200 else None
 
     weatherDict = {}
-    weatherDict['Location'] = weatherjson['location']['name']
-    weatherDict['region'] = weatherjson['location']['region']
-    weatherDict['country'] = weatherjson['location']['country']
-    weatherDict['lat'] = weatherjson['location']['lat']
-    weatherDict['long'] = weatherjson['location']['lon']
-    weatherDict['is_day'] = weatherjson['current']['is_day']
-    weatherDict['localtime'] = datetime.strptime(weatherjson['location']['localtime'], "%Y-%m-%d %H:%M").strftime("%#I:%M %p")
+    try:
+        weatherDict['Location'] = weatherjson['location']['name']
+        weatherDict['region'] = weatherjson['location']['region']
+        weatherDict['country'] = weatherjson['location']['country']
+        weatherDict['lat'] = weatherjson['location']['lat']
+        weatherDict['long'] = weatherjson['location']['lon']
+        weatherDict['is_day'] = weatherjson['current']['is_day']
+        weatherDict['localtime'] = datetime.strptime(weatherjson['location']['localtime'], "%Y-%m-%d %H:%M").strftime("%#I:%M %p")
 
-    weatherDict['temp_f'] = int(weatherjson['current']['temp_f'])
-    weatherDict['temp_c'] = int(weatherjson['current']['temp_c'])
-    weatherDict['feelslike_c'] = int(weatherjson['current']['feelslike_c'])
-    weatherDict['feelslike_f'] = int(weatherjson['current']['feelslike_f'])
-    weatherDict['hightemp_f'] = int(weatherjson['forecast']['forecastday'][0]['day']['maxtemp_f'])
-    weatherDict['hightemp_c'] = int(weatherjson['forecast']['forecastday'][0]['day']['maxtemp_c'])
-    weatherDict['lowtemp_f'] = int(weatherjson['forecast']['forecastday'][0]['day']['mintemp_f'])
-    weatherDict['lowtemp_c'] = int(weatherjson['forecast']['forecastday'][0]['day']['mintemp_c'])
+        weatherDict['temp_f'] = int(weatherjson['current']['temp_f'])
+        weatherDict['temp_c'] = int(weatherjson['current']['temp_c'])
+        weatherDict['feelslike_c'] = int(weatherjson['current']['feelslike_c'])
+        weatherDict['feelslike_f'] = int(weatherjson['current']['feelslike_f'])
+        weatherDict['hightemp_f'] = int(weatherjson['forecast']['forecastday'][0]['day']['maxtemp_f'])
+        weatherDict['hightemp_c'] = int(weatherjson['forecast']['forecastday'][0]['day']['maxtemp_c'])
+        weatherDict['lowtemp_f'] = int(weatherjson['forecast']['forecastday'][0]['day']['mintemp_f'])
+        weatherDict['lowtemp_c'] = int(weatherjson['forecast']['forecastday'][0]['day']['mintemp_c'])
 
+        weatherDict['daily_chance_of_rain'] = weatherjson['forecast']['forecastday'][0]['day']["daily_chance_of_rain"] if weatherjson['forecast']['forecastday'][0]['day']["daily_will_it_rain"] is not 0 else None
+        weatherDict['daily_chance_of_snow'] = weatherjson['forecast']['forecastday'][0]['day']["daily_chance_of_snow"] if weatherjson['forecast']['forecastday'][0]['day']["daily_will_it_snow"] is not 0 else None   
 
-    weatherDict['wind_mph'] = weatherjson['current']['wind_mph']
-    weatherDict['wind_kph'] = weatherjson['current']['wind_kph']
-    weatherDict['wind_dir'] = weatherjson['current']['wind_dir']
+        weatherDict['wind_mph'] = weatherjson['current']['wind_mph']
+        weatherDict['wind_kph'] = weatherjson['current']['wind_kph']
+        weatherDict['wind_dir'] = weatherjson['current']['wind_dir']
 
-    weatherDict['humidity'] = weatherjson['current']['humidity']
-    weatherDict['cloud'] = weatherjson['current']['cloud']
+        weatherDict['humidity'] = weatherjson['current']['humidity']
+        weatherDict['cloud'] = weatherjson['current']['cloud']
 
-    weatherDict['textcondition'] = weatherjson['current']['condition']['text']
-    weatherDict['icon'] = weatherjson['current']['condition']['icon']
+        weatherDict['textcondition'] = weatherjson['current']['condition']['text']
+        weatherDict['icon'] = weatherjson['current']['condition']['icon']
 
-    weatherDict['sunrise'] = weatherjson['forecast']['forecastday'][0]['astro']['sunrise'].lstrip('0')
-    weatherDict['sunset'] = weatherjson['forecast']['forecastday'][0]['astro']['sunset'].lstrip('0')
-    weatherDict['moon_phase'] = weatherjson['forecast']['forecastday'][0]['astro']['moon_phase']
-    weatherDict['moon_illumination'] = weatherjson['forecast']['forecastday'][0]['astro']['moon_illumination']
+        weatherDict['sunrise'] = weatherjson['forecast']['forecastday'][0]['astro']['sunrise'].lstrip('0')
+        weatherDict['sunset'] = weatherjson['forecast']['forecastday'][0]['astro']['sunset'].lstrip('0')
+        weatherDict['moon_phase'] = weatherjson['forecast']['forecastday'][0]['astro']['moon_phase']
+        weatherDict['moon_illumination'] = weatherjson['forecast']['forecastday'][0]['astro']['moon_illumination']
+    except KeyError as e:
+        print("weatherdict key error: ", e)
 
     return weatherDict
 
@@ -171,6 +177,24 @@ async def sunDayLength(lat, long):
     daylength = parse.strftime("%#Hh %Mm")
     return daylength
 
+async def getWeatherEmoji(weatherdata):
+    if weatherdata['textcondition'].lower() == emojiDict:
+        emoji = emojiDict[weatherdata['textcondition']]
+    elif "rain"   in weatherdata['textcondition'].lower():
+        emoji = emojiDict['raining']
+    elif "cloudy" in weatherdata['textcondition'].lower():
+        emoji = emojiDict['cloudy']
+    elif "mist"   in weatherdata['textcondition'].lower():
+        emoji = emojiDict['mist']
+    elif "snow"   in weatherdata['textcondition'].lower():
+        emoji = emojiDict['snowflake']
+    elif weatherdata['is_day'] == 1:
+        emoji = emojiDict['sunny']
+    else:
+        emoji = emojiDict['moon']
+    
+    return emoji
+
 async def getWeatherMsg(place):
     #bingdata = bingGetLocationData(place)
     #nameofplace = bingGetNameOfLocation(bingdata)
@@ -181,6 +205,9 @@ async def getWeatherMsg(place):
     except Exception as e:
         print("something didnt return prob: ", e)
         return #"something fuck up lol"
+
+    if weatherdata['daily_chance_of_rain'] or weatherdata['daily_chance_of_snow']:
+        pass
 
     thingo =  (f"Weather in **{weatherdata['Location']}**\n"
                f"{weatherdata['condition']}\n"
@@ -199,9 +226,13 @@ async def getWeatherMsg(place):
 
     return thingo
 
-async def createweatherembed(place):
+async def createweatherembedboxes(place):
 
-    weatherdata = await getWeatherapidotcomData(place)
+    location = await bingGetLocationDataByQuery(place)
+    coords = await bingGetCoords(location)
+    nameoflocation = await bingGetNameOfLocation(location)
+
+    weatherdata = await getWeatherapidotcomData(','.join(map(str, coords)))
     daylength = await sunDayLength(weatherdata['lat'],weatherdata['long'])
 
     if weatherdata['is_day'] == 1:
@@ -209,61 +240,147 @@ async def createweatherembed(place):
     else:
         daytimehexcolor=0x2d626b
     
-    fulllocation = (f"{weatherdata['Location']}, {weatherdata['region']},\n{weatherdata['country']}")
-    
+    #fulllocation = (f"{weatherdata['Location']}, {weatherdata['region']},\n{weatherdata['country']}")
 
     
-    if weatherdata['textcondition'] == emojiDict:
-        emoji = emojiDict[weatherdata['textcondition']]
-    elif weatherdata['is_day'] == 1:
-        emoji = emojiDict['Sunny']
-    else:
-        emoji = emojiDict['Moon']
-
+    emoji = await getWeatherEmoji(weatherdata)
 
 
     try: 
-        weatherembed = discord.Embed(title=f"Weather in\n{fulllocation}", 
-                                     url="", 
-                                     description=f"**{emoji} {weatherdata['textcondition']} {emoji}**", 
+        weatherembed = discord.Embed(title=f"Weather in {nameoflocation}", 
+                                     url="https://www.accuweather.com/en/us/national/weather-radar", 
+                                     description=f"", 
                                      color=daytimehexcolor)
         #weatherembed.set_author(name=f"someone", 
         #                    url="", 
         #                    icon_url=f"https:{weatherdata['icon']}")
+        #weatherembed.add_field(name=f"Weather in {nameoflocation}",
+        #                        value=f"",inline=False)  
 
-        weatherembed.add_field(name="Current Temperature",
-                                value=f"``` {weatherdata['temp_f']}°F   {weatherdata['temp_c']}°C```", inline=False)        
-
-        weatherembed.add_field(name="Feels Like",
-                                value=f"``` {weatherdata['feelslike_f']}°F   {weatherdata['feelslike_c']}°C```", inline=False)
-        
-        weatherembed.add_field(name="⬆ High • Low ⬇",
-                        value=f"``` {weatherdata['hightemp_f']}°F   {weatherdata['lowtemp_f']}°F\n"
-                              f" {weatherdata['hightemp_c']}°C   {weatherdata['lowtemp_c']}°C```\n",
-                        inline=False)
-
-        #weatherembed.add_field(name="\u200B", value="\u200B")
-        
-
-        weatherembed.add_field(name="💨 Wind Speed  •  Wind Direction 💨",
-                                value=f"``` {weatherdata['wind_mph']}mph   {weatherdata['wind_kph']}kph   {weatherdata['wind_dir']}```", inline=False)
-        
+     
         weatherembed.add_field(name="",
-                                value=f"```   ```", inline=False)
+                                value=f"```ansi\n\u001b[0;0m"
+                                         f"{weatherdata['localtime']}"
+                                         f"         \u001b[1;34m"
+                                         f"{weatherdata['temp_f']}°F • {weatherdata['temp_c']}°C"
+                                         f"        \u001b[0;0m"
+                                         f"{weatherdata['textcondition']}{emoji} ```", inline=False)  
         
 
-        weatherembed.add_field(name="",
-                        value=f"Sunrise: {weatherdata['sunrise']}\n"
-                                f"Sunset:  {weatherdata['sunset']}\n"
-                                f"Day Length: {daylength}\n"
-                            )
-        #weatherembed.add_field(name="\u200B", value="\u200B", inline=False)
-#
+    
+        weatherembed.add_field(name = chr(173), value = chr(173), inline=True)
 
+        weatherembed.add_field(name=" Feels Like",
+                                value=f"```ansi\n\u001b[0;34m {weatherdata['feelslike_f']}°F • {weatherdata['feelslike_c']}°C```", inline=True)
+
+        weatherembed.add_field(name="⬆⬇ High, Low",
+                    value=  f"```ansi\n\u001b[0;34m"
+                            f" {weatherdata['hightemp_f']}°F • {weatherdata['hightemp_c']}°C\n"
+                            f" {weatherdata['lowtemp_f']}°F • {weatherdata['lowtemp_c']}°C```\n",
+                    inline=True)
         
+        #==== Next Row ====
+        
+        weatherembed.add_field(name=" Wind Speed 💨",
+                                value=f"```ansi\n\u001b[0;36m {weatherdata['wind_mph']}mph\n {weatherdata['wind_kph']}kph\n {weatherdata['wind_dir']}```", inline=True)
+     
+        weatherembed.add_field(name="💧 Humidity 💧",
+                                value=f"```ansi\n\u001b[0;34m {weatherdata['humidity']}%```", inline=True)
+
+        weatherembed.add_field(name="🌞 Daylight 🌝",
+                        value=f"```ansi\n\u001b[0;33m"
+                              f"   Sunrise: {weatherdata['sunrise']}\n"
+                              f"    Sunset: {weatherdata['sunset']}\n"
+                              f"Day Length: {daylength}\n```")
+
+        if weatherdata['daily_chance_of_rain']:
+            weatherembed.add_field(name="Chance of Rain",
+                value=f"```ansi\n\u001b[0;33m"
+                      f" {weatherdata['daily_chance_of_rain']}%```")
+        elif weatherdata['daily_chance_of_snow']:
+            weatherembed.add_field(name="Chance of Snow",
+                value=f"```ansi\n\u001b[0;33m"
+                      f" {weatherdata['daily_chance_of_snow']}%```")
+        else:
+            pass
+
+        #weatherembed.add_field(name="🌥 Cloud 🌥", 
+        #                value=f"``` {weatherdata['cloud']}```", inline=True) #idk what they mean by cloud, it's fully cloudy out and it gives me 0
+        #weatherembed.add_field(name = chr(173), value = chr(173), inline=True)
+        #weatherembed.add_field(name = chr(173), value = chr(173), inline=False)
+        #weatherembed.add_field(name="\u200B", value="\u200B")   
 
     except Exception as e:
         print("createweatherembed failed: ", e)
+
     return weatherembed
 
+async def createweatherembedline(place):
 
+    try:
+        location = await bingGetLocationDataByQuery(place)
+        coords = await bingGetCoords(location)
+        nameoflocation = await bingGetNameOfLocation(location)
+    except Exception as e:
+        print("createweatherembed location search not work: ", e)
+        return 1
+
+    try: 
+        weatherdata = await getWeatherapidotcomData(','.join(map(str, coords)))
+        daylength = await sunDayLength(weatherdata['lat'],weatherdata['long'])
+    except Exception as e:
+        print("createweatherembed weatherdata lookup not working: ", e)
+        return 2
+
+
+    if weatherdata['is_day'] == 1:
+        daytimehexcolor=0x0ba4ff
+    else:
+        daytimehexcolor=0x2d626b
+    
+    #fulllocation = (f"{weatherdata['Location']}, {weatherdata['region']},\n{weatherdata['country']}")
+
+    
+    emoji = await getWeatherEmoji(weatherdata)
+
+
+
+    try: 
+        weatherembed = discord.Embed(title=f"Weather in {nameoflocation}", 
+                                     url="https://www.accuweather.com/en/us/national/weather-radar", 
+                                     description=f"", 
+                                     color=daytimehexcolor)
+        #weatherembed.set_author(name=f"someone", 
+        #                    url="", 
+        #                    icon_url=f"https:{weatherdata['icon']}")
+        #weatherembed.add_field(name=f"Weather in {nameoflocation}",
+        #                        value=f"",inline=False)  
+
+
+        #\u001b[{format};{color}m     https://gist.github.com/kkrypt0nn/a02506f3712ff2d1c8ca7c9e0aed7c06
+
+        weatherembed.add_field(name="",
+                                value=  f"```ansi\n"
+                                        f""               f"             "  f"\u001b[0;0m"    f"{weatherdata['localtime']}"
+                                        f"\n\u001b[1;34m" f"             "  f"\u001b[0;0m"    f"{weatherdata['textcondition']} {emoji}"
+                                        f"\n\u001b[1;34m" f"    Current: "  f"\u001b[0;34m"   f"{weatherdata['temp_f']}°F • {weatherdata['temp_c']}°C"
+                                        f"\n\u001b[0;34m" f" Feels Like: "  f"\u001b[0;33m"   f"{weatherdata['feelslike_f']}°F • {weatherdata['feelslike_c']}°C"
+                                        f"\n\u001b[1;34m" f"     ⬆ High: "  f"\u001b[0;34m"   f"{weatherdata['hightemp_f']}°F • {weatherdata['hightemp_c']}°C"
+                                        f"\n\u001b[1;34m" f"     ⬇  Low: "  f"\u001b[0;34m"   f"{weatherdata['lowtemp_f']}°F • {weatherdata['lowtemp_c']}°C"
+                                        f"\n\u001b[1;36m" f" Wind Speed: "  f"\u001b[0;36m"   f"{weatherdata['wind_mph']}mph • {weatherdata['wind_kph']}kph {weatherdata['wind_dir']}"
+                                        f"\n\u001b[1;36m" f"   Humidity: "  f"\u001b[0;36m"   f"{weatherdata['humidity']}%"
+                                        f"\n\u001b[1;33m" f"    Sunrise: "  f"\u001b[0;33m"   f"{weatherdata['sunrise']}"
+                                        f"\n\u001b[1;33m" f"     Sunset: "  f"\u001b[0;33m"   f"{weatherdata['sunset']}"
+                                        f"\n\u001b[1;33m" f" Day Length: "  f"\u001b[0;33m"   f"{daylength}" 
+                                        f"```"
+                                , inline=False)
+        #weatherembed.add_field(name="",
+        #                        value=  "[Radar](https://www.accuweather.com/en/us/national/weather-radar)")
+
+        #weatherembed.set_footer(icon_url= "",
+        #                        text= "")
+    except Exception as e:
+        weatherembed = None
+        print("createweatherembed failed: ", e)
+
+    return weatherembed
