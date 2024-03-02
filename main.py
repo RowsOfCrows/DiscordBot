@@ -11,6 +11,8 @@ import random
 import requests
 import feedparser
 import asyncio
+import asyncpraw
+import asyncprawcore
 
 
 #===== Other Files ======   
@@ -23,6 +25,7 @@ logging.basicConfig(level=logging.DEBUG)
 
 guildjackid = 1201960481162530846
 guildobject = discord.Object(id=guildjackid) 
+
 
 class MyClient(discord.Client): #bot initalization
 
@@ -48,6 +51,8 @@ voice_channel_list = []
 muteChat = client.get_channel(1201960482534346824)
 
 
+
+
 @client.event
 async def on_ready():
     print(f'Bot connected as {client.user} (ID: {client.user.id})')
@@ -69,12 +74,18 @@ async def on_ready():
                 voice_channel_list.append(channel.id)
 
 
-    #asyncio.create_task(redditapi.monitor_submissions())
+    #asyncio.create_task(redditapi.monitor_calendar_submissions())
     #redditapi.calendardm(moeid)
     #dmtest.start()
                 
 
-                
+
+#===========================================================
+# loop tasks
+#===================
+#@tasks.loop
+
+
 #============================================================
 # Channel events
 #==============
@@ -96,6 +107,7 @@ async def on_guild_channel_delete(channel):
             #print(voice_channel_list)          
 
 
+
 #===========================================================
 # new tree stuff main
 #====================
@@ -108,6 +120,7 @@ async def ping(interaction):
 @client.tree.command(name="time", description="the local time of any place!")
 async def time(interaction: discord.Interaction, location: str):
     eee = await locations.getTimeString(location)
+    print(eee)
     await interaction.response.send_message(eee)
 
 #===========================================================
@@ -170,8 +183,6 @@ async def redditnew(interaction:discord.Interaction, subreddit: str):
     embedthis = await redditapi.postnewest(subreddit)
     await interaction.response.send_message(embed=embedthis)
 
-
-
 #============================================================
 # Regular Text
 #==============
@@ -185,7 +196,10 @@ async def on_message(message):
         await message.channel.send(f"Woof! <@{message.author.id}>! :heart:")
 
 
-#=======
+
+#~~~
+        
+
 
     # Forward all text messages in voice channels to a single text channel
     if message.channel.id in voice_channel_list:

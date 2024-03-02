@@ -1,56 +1,101 @@
-import praw
-from TokensAndKeys import reddit
+import asyncpraw
+from TokensAndKeys import redditapicreds
 import asyncio
 import discord
 import random
 import datetime
+import asyncprawcore
+
+#===================
+
+
+calandardayimage = None
 
 
 
-#print("Title:", newest_post.title)
-#print("Self-Text:", newest_post.selftext)
-#print("URL:", newest_post.url)
-#print("Author:", newest_post.author)
-#print("Created UTC:", newest_post.created_utc)
+#=========================#
+# Setup the async session # 
+# you need to set it up in an async function, that took way too long to find on google
+#==========
+async def get_reddit_instance():
+    async with asyncpraw.Reddit(
+        client_id = redditapicreds["client_id"],
+        client_secret = redditapicreds["client_secret"],
+        user_agent = redditapicreds["user_agent"],
+    ) as reddit:
+        yield reddit # only returns one session and closes it :)
 
-
-async def monitor_submissions():
-    subreddit = reddit.subreddit('animecalendar')
-    # Create a submission stream for the subreddit
-    submission_stream = subreddit.stream.submissions()
-
-    # Monitor new submissions with an asynchronous delay to avoid rate-limiting
-    for submission in submission_stream:
-        print(f"New submission: {submission.title} by {submission.author}")
-
-
+#========================================
+#Post Newest and hot
+#===================
 async def postnewest(desiredsubreddit):
-    subreddit = reddit.subreddit(desiredsubreddit) 
-    newest_post = next(x for x in subreddit.new(limit=3) if not x.stickied)
-    return await createredditembed(newest_post)
+    async for reddit in get_reddit_instance():
+        subreddit = await reddit.subreddit(desiredsubreddit)
+        async for x in subreddit.new(limit=3):
+            if not x.stickied:
+                newest_post = x
+                return await createredditembed(newest_post)
 
 async def posthot(desiredsubreddit):
-    subreddit = reddit.subreddit(desiredsubreddit) 
-    hot_post = next(x for x in subreddit.hot(limit=3) if not x.stickied)
-    return await createredditembed(hot_post)
+    async for reddit in get_reddit_instance():
+        subreddit = await reddit.subreddit(desiredsubreddit)
+        async for x in subreddit.hot(limit=3):
+            if not x.stickied:
+                newest_post = x
+                return await createredditembed(newest_post)
+
+#========================
+# Testing Debug
+#==============
+
+async def test_subreddit_info_name(subreddit_name):
+    async for reddit in get_reddit_instance():
+        subreddit = await reddit.subreddit(subreddit_name, fetch=True)
+        print(subreddit.display_name)
 
 
-async def calendardm(theuser):
-    calendarsubreddit = reddit.subreddit('animecalendar')
-    submission_stream = calendarsubreddit.stream.submissions()
+async def test_print5titles():
+    async for reddit in get_reddit_instance():
+        subreddit = await reddit.subreddit("programming")
+        async for submission in subreddit.new(limit=5):
+            print(submission.title)
 
-    async for submission in submission_stream:
-        channel = await theuser.create_dm()
-        await channel.send(embed=await createredditembed(submission))
-        #await interaction.response.send_message("done",ephemeral=True)
 
 async def testdmme(theuser):
-    calendarsubreddit = reddit.subreddit('animecalendar')
-    newestpost = calendarsubreddit.new(limit=1).__next__()
+    async for reddit in get_reddit_instance():
+        calendarsubreddit = await reddit.subreddit('animecalendar')
+        newestpost = calendarsubreddit.new(limit=1).__next__()
 
-    channel = await theuser.create_dm()
-    await channel.send(embed=await createredditembed(newestpost))
+        channel = await theuser.create_dm()
+        await channel.send(embed=await createredditembed(newestpost))
 
+async def calendardm(theuser): #test submission stream
+    async for reddit in get_reddit_instance():
+        calendarsubreddit = await reddit.subreddit('animecalendar')
+        submission_stream = calendarsubreddit.stream.submissions()
+
+        async for submission in submission_stream:
+            channel = await theuser.create_dm()
+            await channel.send(embed=await createredditembed(submission))
+
+#========================
+
+async def monitor_calendar_submissions():
+    global calandardayimage
+    async for reddit in get_reddit_instance():
+        subreddit = await reddit.subreddit('all')
+        # Create a submission stream for the subreddit
+        submission_stream = subreddit.stream.submissions()
+
+        # Monitor new submissions 
+        async for submission in submission_stream:
+            calandardayimage = submission
+            print(f"New submission: {calandardayimage.title} by {calandardayimage.author}")
+
+
+#====================================
+# Create Discord Embed
+#=====================
 async def createredditembed(redditpost): #the most clear name in the history of me naming anything
     
     #randomhexcolor = int("%06x" % random.randint(0, 0xFFFFFF), 16)
@@ -72,3 +117,11 @@ async def createredditembed(redditpost): #the most clear name in the history of 
 
 
 #embedthis.add_field(name="Field 1 Title", value=f"{newest_post.url}", inline=False)
+
+
+
+#print("Title:", newest_post.title)
+#print("Self-Text:", newest_post.selftext)
+#print("URL:", newest_post.url)
+#print("Author:", newest_post.author)
+#print("Created UTC:", newest_post.created_utc)

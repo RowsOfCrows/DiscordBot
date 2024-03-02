@@ -33,7 +33,9 @@ emojiDict={
     "rainlist": ["🌧", "☔️", "💦", "💧"]
 }
 
-#=========
+#=====================================
+# Retrieve and parse location data
+#==========
 
 async def bingGetLocationDataByQuery(locationQuery):
     if type(locationQuery) == str:
@@ -76,7 +78,8 @@ async def bingLocalTime(lat,long):
     return formattedlocaltime, timezoneNameAbbrev
 
 #===========
-
+# Testing
+#========
 async def getTimeString(place):
     place2 = ''.join(place) #I have no idea why I wrote this here or like this, it seems redundant but it works so I'm not touching it
     
@@ -87,10 +90,10 @@ async def getTimeString(place):
     if "moe".lower() == place2.lower():
         place2 = "Maryland"
     
-    bingdata = bingGetLocationDataByQuery(place2)
-    placename = bingGetNameOfLocation(bingdata)
-    coordlist = bingGetCoords(bingdata)
-    timethere, abbrev = bingLocalTime(*coordlist)
+    bingdata = await bingGetLocationDataByQuery(place2)
+    placename = await bingGetNameOfLocation(bingdata)
+    coordlist = await bingGetCoords(bingdata)
+    timethere, abbrev = await bingLocalTime(*coordlist)
     string = f"Time in {placename}: **{timethere}** {abbrev}"
      
     return string
