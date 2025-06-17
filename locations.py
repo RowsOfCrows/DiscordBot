@@ -1,13 +1,10 @@
 
 import discord
 import random
-from astral import LocationInfo
-from astral.sun import sun
 from datetime import datetime, timedelta
 import urllib.parse
 import TokensAndKeys
 import requests
-
 
 
 BingMapsKey = TokensAndKeys.bingmapsApiKey
@@ -43,7 +40,6 @@ async def bingGetLocationDataByQuery(locationQuery):
     else:
         cool = ''.join(locationQuery)
     bingplace = requests.get(f"http://dev.virtualearth.net/REST/v1/Locations?query={cool}&key={BingMapsKey}")
-    #print(f"http://dev.virtualearth.net/REST/v1/Locations?query={cool}&key={BingMapsKey}")
     bingjsondata = bingplace.json() if bingplace and bingplace.status_code == 200 else None
     return bingjsondata
 
@@ -55,15 +51,13 @@ async def bingGetLocationDataByCoords(lat,long):
     #http://dev.virtualearth.net/REST/v1/Locations/47.60322952,-122.33027649?&key=AuQX5ztwTTNpJ0flr2pxkaWz_EJSdujIZvz91VBHTw4oFo39aa6hXdyJinlUiw54
     return bingjsondata
 
-async def bingGetNameOfLocation(bingdata):
-    nameofplace = bingdata["resourceSets"][0]["resources"][0]["name"]
-    return nameofplace
+async def bingParseNameOfLocation(bingjsondata):
+    return bingjsondata["resourceSets"][0]["resources"][0]["name"]
 
-async def bingGetCoords(bingdata):
-    coordlist = bingdata["resourceSets"][0]["resources"][0]["point"]["coordinates"]
-    return coordlist
+async def bingParseCoords(bingjsondata):
+    return bingjsondata["resourceSets"][0]["resources"][0]["point"]["coordinates"]
 
-async def bingLocalTime(lat,long):
+async def bingParseLocalTime(lat,long):
     timezoneurl = requests.get(f"https://dev.virtualearth.net/REST/v1/TimeZone/{lat},{long}?&key={BingMapsKey}") #?datetime={datetime_utc}
     #print(f"https://dev.virtualearth.net/REST/v1/TimeZone/{coord[0]},{coord[1]}?&key={BingMapsKey}")
     timezonejson = timezoneurl.json() if timezoneurl and timezoneurl.status_code == 200 else None
@@ -91,36 +85,43 @@ async def getTimeString(place):
         place2 = "Maryland"
     
     bingdata = await bingGetLocationDataByQuery(place2)
-    placename = await bingGetNameOfLocation(bingdata)
-    coordlist = await bingGetCoords(bingdata)
-    timethere, abbrev = await bingLocalTime(*coordlist)
+    placename = await bingParseNameOfLocation(bingdata)
+    coordlist = await bingParseCoords(bingdata)
+    timethere, abbrev = await bingParseLocalTime(*coordlist)
     string = f"Time in {placename}: **{timethere}** {abbrev}"
      
     return string
 
-async def astralSunStuff(coords):
+async def getWeatherMsg(place):
+    #bingdata = bingGetLocationData(place)
+    #nameofplace = bingGetNameOfLocation(bingdata)
+    
+    try:
+        weatherdata = getWeatherapidotcomData(place)
+        #currentlocationtime = bingLocalTime(bingdata)     
+    except Exception as e:
+        print("something didnt return prob: ", e)
+        return #"something fuck up lol"
 
-    #astral gives you some sun stats with datetime values
-    #I reput them in as formatted times that make peoples eyes heal
-    locato = LocationInfo('name','region','US/Central', coords[0], coords[1])
-    rawSunInfo = sun(locato.observer, date=datetime(rightnow.year, rightnow.month, rightnow.day))#print("sunlist: ", rawSunInfo) #{'dawn': datetime.datetime(2024, 2, 5, 14, 57, 53, 300320, tzinfo=datetime.timezone.utc)}
-    sunInfo = {key: value.strftime('%#I:%M%p') for key, value in rawSunInfo.items()}
+    if weatherdata['daily_chance_of_rain'] or weatherdata['daily_chance_of_snow']:
+        pass
 
-    #get day length and put it in the suninfo dict
-    sunApiPlace = requests.get(f"https://api.sunrise-sunset.org/json?lat={coords[0]}&lng={coords[1]}&date=today")
-    sunjson = sunApiPlace.json() if sunApiPlace and sunApiPlace.status_code == 200 else None
-    daylengthraw = sunjson["results"]['day_length'] # 09:51:59 h m s
-    parse = datetime.strptime(daylengthraw, "%H:%M:%S")
-    daylength = parse.strftime("%#Hh %Mm")
-    sunInfo["daylength"] = daylength
-    #f'Dawn:    {sunInfo["dawn"]}\n'
-    #f'Sunrise: {sunInfo["sunrise"]}\n'
-    #f'Noon:    {sunInfo["noon"]}\n'  
-    #f'Sunset:  {sunInfo["sunset"]}\n'
-    #f'Dusk:    {sunInfo["dusk"]}\n'
-    return sunInfo
+    thingo =  (f"Weather in **{weatherdata['Location']}**\n"
+               f"{weatherdata['condition']}\n"
+               f"Temperature: {weatherdata['temp_f']}, {weatherdata['temp_c']}\n"
+               f"Feels Like: {weatherdata['feelslike_f']}, {weatherdata['feelslike_c']}\n"
+               f"Wind: {weatherdata['wind_mph']} mph, {weatherdata['wind_kph']} kph {weatherdata['wind_dir']}\n"
+               ""
+               #f"precipitation: {weatherdata['precipitation']}\n"
+               #f"rain: {weatherdata['rain']}\n"
+               #f"showers: {weatherdata['showers']}\n"
+               #f"snowfall: {weatherdata['snowfall']}\n"
+               
+              )
+              #{sundata}
+              #{currentlocationtime}"f"snowdepth: {weatherdata['snowdepth']}\n"
 
-
+    return thingo
 
 ########################
 #   new weather stuff  #
@@ -198,42 +199,11 @@ async def getWeatherEmoji(weatherdata):
     
     return emoji
 
-async def getWeatherMsg(place):
-    #bingdata = bingGetLocationData(place)
-    #nameofplace = bingGetNameOfLocation(bingdata)
-    
-    try:
-        weatherdata = getWeatherapidotcomData(place)
-        #currentlocationtime = bingLocalTime(bingdata)     
-    except Exception as e:
-        print("something didnt return prob: ", e)
-        return #"something fuck up lol"
-
-    if weatherdata['daily_chance_of_rain'] or weatherdata['daily_chance_of_snow']:
-        pass
-
-    thingo =  (f"Weather in **{weatherdata['Location']}**\n"
-               f"{weatherdata['condition']}\n"
-               f"Temperature: {weatherdata['temp_f']}, {weatherdata['temp_c']}\n"
-               f"Feels Like: {weatherdata['feelslike_f']}, {weatherdata['feelslike_c']}\n"
-               f"Wind: {weatherdata['wind_mph']} mph, {weatherdata['wind_kph']} kph {weatherdata['wind_dir']}\n"
-               ""
-               #f"precipitation: {weatherdata['precipitation']}\n"
-               #f"rain: {weatherdata['rain']}\n"
-               #f"showers: {weatherdata['showers']}\n"
-               #f"snowfall: {weatherdata['snowfall']}\n"
-               
-              )
-              #{sundata}
-              #{currentlocationtime}"f"snowdepth: {weatherdata['snowdepth']}\n"
-
-    return thingo
-
 async def createweatherembedboxes(place):
 
-    location = await bingGetLocationDataByQuery(place)
-    coords = await bingGetCoords(location)
-    nameoflocation = await bingGetNameOfLocation(location)
+    locationjson = await bingGetLocationDataByQuery(place)
+    coords = await bingParseCoords(locationjson)
+    nameoflocation = await bingParseNameOfLocation(locationjson)
 
     weatherdata = await getWeatherapidotcomData(','.join(map(str, coords)))
     daylength = await sunDayLength(weatherdata['lat'],weatherdata['long'])
@@ -322,8 +292,8 @@ async def createweatherembedline(place):
 
     try:
         location = await bingGetLocationDataByQuery(place)
-        coords = await bingGetCoords(location)
-        nameoflocation = await bingGetNameOfLocation(location)
+        coords = await bingParseCoords(location)
+        nameoflocation = await bingParseNameOfLocation(location)
     except Exception as e:
         print("createweatherembed location search not work: ", e)
         return 1

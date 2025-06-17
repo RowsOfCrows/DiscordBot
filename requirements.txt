@@ -1,6 +1,8 @@
-jinja2
-PyYAML
+discord.py
 astral
-feedparser
-datetime
 requests
+requests-cache
+feedparser
+asyncpraw
+asyncprawcore
+ollama

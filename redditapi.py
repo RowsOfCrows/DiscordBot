@@ -14,8 +14,7 @@ calandardayimage = None
 
 
 #=========================#
-# Setup the async session # 
-# you need to set it up in an async function, that took way too long to find on google
+# Setup the async session #
 #==========
 async def get_reddit_instance():
     async with asyncpraw.Reddit(
@@ -80,17 +79,33 @@ async def calendardm(theuser): #test submission stream
 
 #========================
 
+#async def monitor_calendar_submissions():
+#    global calandardayimage
+#    async for reddit in get_reddit_instance():
+#        subreddit = await reddit.subreddit('AnimeCalendar')
+#        # Create a submission stream for the subreddit
+#        submission_stream = subreddit.stream.submissions()
+#
+#        # Monitor new submissions 
+#        async for submission in submission_stream:
+#            calandardayimage = submission
+#            print(f"New submission: {calandardayimage.title} by {calandardayimage.author}")
+
+#==========================
+            
 async def monitor_calendar_submissions():
     global calandardayimage
+    #channel = await userid.create_dm()
+
     async for reddit in get_reddit_instance():
-        subreddit = await reddit.subreddit('all')
-        # Create a submission stream for the subreddit
+        subreddit = await reddit.subreddit('AnimeCalendar')
         submission_stream = subreddit.stream.submissions()
 
-        # Monitor new submissions 
         async for submission in submission_stream:
             calandardayimage = submission
-            print(f"New submission: {calandardayimage.title} by {calandardayimage.author}")
+            #calandardayimage = submission
+            #await channel.send(createredditembed(submission))
+
 
 
 #====================================
@@ -105,7 +120,7 @@ async def createredditembed(redditpost): #the most clear name in the history of 
 
     embedthis = discord.Embed(title=f"{redditpost.title}",
                               url=f"{redditpost.url}",
-                              #description="description",
+                              #description=f"r/{redditpost.subreddit}",
                               color=0xff782b)
     if redditpost.url.endswith(('.jpg', '.jpeg', '.png', '.gif')):
         embedthis.set_image(url=redditpost.url)
