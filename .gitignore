@@ -5,3 +5,4 @@ Misc/
 .vscode/
 BotData/chat_history.json
 BotData/last_posted_cal_img_date.txt
+BotData/bottalk/
