@@ -24,13 +24,15 @@ import youtubestuff
 import locations
 import TokensAndKeys
 import redditapi
+from messagelistener import oll_host, oll_winpc_host, oll_ubupc_host
 
 logging.basicConfig(level=logging.DEBUG)
 
 chat_queue = []     # bot AI prompt queue in the form of [{discord.message, reference to bot's reply}, ... ]
 is_busy = False     # Is bot busy chatting to another prompt
 CHATBOT_MEMORY_BUFFER = 200  # number of messages to keep in memory from both user and baidbot
-ollama_client = ollama.Client()
+host = oll_host
+ollama_client = ollama.Client(host=f"http://{host}:11434")
 CURRENT_OLLAMA_MODEL = "jackwhims" # Model name used by ollama
 MODEL_OPTIONS = {
     "Whimsical": "jackwhims",   
@@ -42,46 +44,57 @@ llm_names = ["jack", "axi", "axiom", "barkness", "dagi", "dogai"]
 if not os.path.exists("BotData"):
     os.makedirs("BotData")
 
+
+
 guildjackid = 875349586141675582
 guildobject = discord.Object(id=guildjackid) 
 voice_channel_list = []
-
-
 #=============================================
 # Set up client 
 #========================
 
 class MyClient(commands.Bot):
-
-
     def __init__(self, *, intents: discord.Intents):
-        super().__init__(command_prefix="!", intents=intents)
+        super().__init__(command_prefix="zz",
+                         intents=intents,
+                         owner_id=98200277580009472
+                         )
 
     async def setup_hook(self):
         # load cogs
         await self.load_extension('cogs.calendarcog')
-        #await self.load_extension('messagelistener')
+        await self.load_extension('cogs.devtools')
+        await self.load_extension('messagelistener')
 
 
-        #self.tree.sync()         
-        self.tree.clear_commands(guild=None) #clear global commands
-        self.tree.clear_commands(guild=guildobject)
-        #self.tree.copy_global_to(guild=guildobject)
 
-        self.tree.copy_global_to(guild=guildobject)
-        synced_in_guild = await self.tree.sync(guild=guildobject)
-        print(f"✅ {len(synced_in_guild)} commands synced to guild")
-        # Sync global commands (takes up to an hour to appear)
-        #synced_global = await self.tree.sync()
-        #print(f"🌍 {len(synced_global)} commands synced globally")
+        #print(f"App commands registered in tree: {[cmd.name for cmd in self.tree.get_commands()]}")
 
+        # remove stale commands
+#        self.tree.clear_commands(guild=guildobject)
+#        print("✅ Cleared guild commands.")
+#
+#        self.tree.clear_commands(guild=None)
+#        print("✅ Cleared global commands.")
+#
+#        # Sync global commands (commands without @guilds)
+#        #synced_global = await self.tree.sync()
+#        #print(f"✅ {len(synced_global)} commands synced globally 🌍.")
+#
+#        # Sync guild commands (commands with @guilds)
+#        synced_in_guild = await self.tree.sync(guild=guildobject)
+#        print(f"✅ {len(synced_in_guild)} commands synced to guild {guildobject.id}.")
+#
+#
+#        print(f"App commands registered in tree: {[cmd.name for cmd in self.tree.get_commands()]}")
 
 
 intents = discord.Intents.all()
 intents.message_content = True
 #client = commands.Bot(command_prefix='!', intents=intents)
 client = MyClient(intents=intents)
-
+client.owner_id = 98200277580009472
+client.command_prefix="zz"
 
 #=============================================
 moeid = client.get_user(98200277580009472)
@@ -101,14 +114,15 @@ async def on_ready():
         if str(channel.type) == 'voice':
             voice_channel_list.append(channel.id)
     print(f"appended vc: {voice_channel_list}")
-
+    print('=========================================================')
     #global last_posted_cal_img_date
     #last_posted_cal_img_date = await load_last_posted_date()
     #print(f"Loaded last posted calendar date1: {last_posted_cal_img_date}")
 
 
     #await client.tree.sync()
-    #await client.tree.sync(guild=discord.Object(id=guildjackid))
+    #gsync = await client.tree.sync(guild=discord.Object(id=guildjackid))
+    #print(f"✅ {len(gsync)} commands synced to guild {guildobject.id}.")
     ##client.tree.clear_commands(guild=None)
     #await client.tree.sync()
 
@@ -161,6 +175,12 @@ async def ping(interaction):
     bot_latency = round(client.latency * 1000)
     await interaction.response.send_message(f"Response time: {bot_latency}ms.")
 
+@commands.hybrid_command(name="ping2", description="return bot latency")
+async def ping2(ctx):
+    bot_latency = round(client.latency * 1000)
+    print(f"BOT LAENTNTNTOENEO {bot_latency}")
+    await ctx.send(f"Response time: {bot_latency}ms.")
+
 
 @client.tree.command(name="time", description="the local time of any place!")
 async def time(interaction: discord.Interaction, location: str):
@@ -177,29 +197,29 @@ async def sync(interaction: discord.Interaction):
         await interaction.response.send_message('You must be the owner to use this command!')
 
 #@client.tree.command(name="fake", description="fake webhook messages as yourself")
-async def fake(interaction: discord.Interaction, message: str):
-    user = interaction.user
-    display_name = user.display_name  # This works in guilds (it's the nickname if set)
-    avatar_url = user.avatar.url if user.avatar else user.default_avatar.url
-
-    # Check for existing webhook in this channel
-    if interaction.channel.id not in webhook_cache:
-        webhook = await interaction.channel.create_webhook(name="Webhook")
-        webhook_cache[interaction.channel.id] = webhook.url
-    else:
-        webhook = discord.Webhook.from_url(
-            webhook_cache[interaction.channel.id], 
-            adapter=discord.AsyncWebhookAdapter(bot.http._HTTPClient__session)
-        )
-
-    await webhook.send(
-        message,
-        username=display_name,
-        avatar_url=avatar_url
-    )
-
-    await interaction.response.send_message("Message sent!", ephemeral=True)
-
+#async def fake(interaction: discord.Interaction, message: str):
+#    user = interaction.user
+#    display_name = user.display_name  # This works in guilds (it's the nickname if set)
+#    avatar_url = user.avatar.url if user.avatar else user.default_avatar.url
+#
+#    # Check for existing webhook in this channel
+#    if interaction.channel.id not in webhook_cache:
+#        webhook = await interaction.channel.create_webhook(name="Webhook")
+#        webhook_cache[interaction.channel.id] = webhook.url
+#    else:
+#        webhook = discord.Webhook.from_url(
+#            webhook_cache[interaction.channel.id], 
+#            adapter=discord.AsyncWebhookAdapter(bot.http._HTTPClient__session)
+#        )
+#
+#    await webhook.send(
+#        message,
+#        username=display_name,
+#        avatar_url=avatar_url
+#    )
+#
+#    await interaction.response.send_message("Message sent!", ephemeral=True)
+#
 
 #===========================================================
 # Weather
@@ -433,7 +453,7 @@ async def forwardvoicetext(message):
 # Regular Text
 #==============
 @client.event
-async def on_message(message):
+async def on_message(message: discord.Message):
     if message.author == client.user: # if message is from bot, ignore all other if statements
         return
     
@@ -443,6 +463,7 @@ async def on_message(message):
     if message.content.startswith('hi bot'):
         await message.channel.send(f"Woof! <@{message.author.id}>! :heart:")
 
+
 #~~~ 
 
     # Forward all text messages in voice channels to a single text channel
@@ -451,7 +472,22 @@ async def on_message(message):
 
 #~~~
 
-    if message.channel == discord.Object(id=1382296618677571654):
+
+    global oll_host
+    if message.content.startswith('ch host') and (message.author.id == moeidnum):
+        if oll_host == oll_winpc_host:
+            oll_host = oll_ubupc_host
+            print("✅ changed to ubuntu 🐧")
+            await message.channel.send("✅ 🐧 host changed to Ubuntu!") #, ephemeral=True
+        else:
+            oll_host = oll_winpc_host
+            print("✅ changed to windows")
+            await message.channel.send("✅ 🪟 host changed to Windows!") #, ephemeral=True
+
+
+
+
+    if message.channel.id == 1382296618677571654:
         return # please ignore other testing chanel for now 
     
     # Prompt LLM

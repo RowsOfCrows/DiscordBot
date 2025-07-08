@@ -119,9 +119,9 @@ class CogCalendar(commands.Cog):
         print(f"Calendar Check... Current date: {current_date_str} | Last posted: {self.last_posted_cal_img_date}")
 
         if current_date_str != self.last_posted_cal_img_date:
-            filename = f"{current_date_str}"
+            filename = f"{current_date_str}{suffix}"
             for file in os.listdir(self.calendar_image_folder):
-                if file.startswith(filename):
+                if file.startswith(f"{filename}"):
                     file_path = os.path.join(self.calendar_image_folder, file)
                     await cal_channel.send( content=f"**# {current_date_str}{suffix}**"
                                                     f"Year Progress: `  {progress_bar(year_progress())}`\n"
