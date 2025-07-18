@@ -85,13 +85,7 @@ class MessageListener(commands.Cog):
         if not whm:
             whm = await self.sendwebhookmsg(usr_msg, profile)
 
-        global is_busy
-        if is_busy:
-            await whm.edit(content=f"-# (Queue: {len(chat_queue) + 1})")
-            chat_queue.append((usr_msg, profile, whm))
-            return
 
-        is_busy = True
 
         await whm.edit(content="-# *Loading...*")
 
@@ -168,11 +162,28 @@ class MessageListener(commands.Cog):
             json.dump(chat_history_dict, f, indent=2)
 
         # Process next message in queue if exists
-        if chat_queue:
-            next_msg, next_profile, next_whm = chat_queue.pop(0)
-            await self.chat_with_chatbot(next_msg, next_profile, next_whm)
-        else:
+        global chat_queue
+        global is_busy
+        try:
+            if chat_queue:
+                next_msg, next_profile, next_whm = chat_queue.pop(0)
+                print(f"Queue size after processing: {len(chat_queue)}")
+                await self.chat_with_chatbot(next_msg, next_profile, next_whm)
+            else:
+                print(f" \n\n\n now not busy!!!\n\n\n")
+                is_busy = False
+        except Exception as e:
+            print(f"Error processing queue: {e}")
             is_busy = False
+
+        #if chat_queue:
+        #    next_msg, next_profile, next_whm = chat_queue.pop(0)
+        #    await self.chat_with_chatbot(next_msg, next_profile, next_whm)
+        #else:
+        #    print(f" \n\n\n now not busy!!!\n\n\n")
+        #    is_busy = False
+
+
 
     async def log_user_message(self, message: discord.Message):
         if message.guild is not None:
@@ -210,7 +221,6 @@ class MessageListener(commands.Cog):
         with open(f"{path}.json", 'w') as f:
             json.dump(chat_history_dict, f, indent=2)
 
-
     async def sendwebhookmsg(self, message, profile:dogprofiles):
         c = self.bot.get_channel(bottalkchannel)
         chatwebhook = await c.webhooks()
@@ -244,7 +254,7 @@ class MessageListener(commands.Cog):
         is_reply_profile = None
         is_reply = False
         #client.user in message.mentions #if the bot gets mentioned
-        if message.reference and isinstance(message.reference.resolved, discord.Message):
+        if message.reference and isinstance(message.reference.resolved, discord.Message): # add bot profile of who is being replied to
             is_reply = True
             replied_to = message.reference.resolved # regular discord.message obj
             for profile in dogprofileslist:
@@ -256,7 +266,6 @@ class MessageListener(commands.Cog):
             # Get the displayed webhook username (if this was a webhook message)
             #print(f"User replied to message from: {replied_to.author.name}")
             #print(f"Content of replied-to message: {replied_to.content}")
-
 
         # Detect which personalities were mentioned in the message
         for profile in dogprofileslist:
@@ -272,6 +281,21 @@ class MessageListener(commands.Cog):
                     
         # Sort found profiles by earliest mention in the message
         found_profiles.sort(key=lambda x: x[0])
+
+        # add messages to queue if it is handling other messages
+        global is_busy
+        if is_busy:
+            print("bot is busy, chat queue:")
+            print(f"{chat_queue}")
+            # send the webhook msg and queue it up
+            whm = await self.sendwebhookmsg(message, profile)
+            await whm.edit(content=f"-# (Queue: {len(chat_queue) + 1})")
+            chat_queue.append((message, profile, whm))
+            print("\nAFTER APPEND:")
+            print(chat_queue)
+            return
+        is_busy = True
+
 
         for index, profile in found_profiles:
             await self.chat_with_chatbot(message, profile)
