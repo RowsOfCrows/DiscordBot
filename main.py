@@ -19,7 +19,6 @@ import datetime
 
 #===== Other Files ======   
 import youtubestuff
-import locations
 import TokensAndKeys
 import redditapi
 import locationinfo
@@ -232,13 +231,19 @@ async def avatar(interaction: discord.Interaction, user: discord.Member = None):
 
 @client.tree.command(name="reset_ai", description="Reset chatbot's message queue and response status")
 async def reset_queue(interaction: discord.Interaction):
-    global is_busy
-    for chat in chat_queue:
-        await chat[1].edit(content="-# (Cancelled)")
-    chat_queue.clear()     # Reset chat queue
-    is_busy = False     # Reset chatbot's responding status
-    await interaction.response.send_message("Reset queue and status")
-
+    cog = client.get_cog("MessageListener")
+    
+    if cog is None:
+        await interaction.response.send_message("❌ MessageListener cog not found!", ephemeral=True)
+        return
+    
+    queue_size = len(cog.chat_queue)
+    was_busy = cog.is_busy
+    
+    cog.chat_queue.clear()
+    cog.is_busy = False
+    
+    await interaction.response.send_message(f"✅ Cleared {queue_size} queued message(s)\n")
 
 
 @client.tree.command(name="clear_history", description="Clear the chatbot's entire conversation history")
@@ -295,6 +300,8 @@ async def on_message(message: discord.Message):
     # time in <place>
     if message.content.startswith(".time ") :
         await message.channel.send(await locationinfo.gettime(message.content[6:]))
+    if message.content.startswith("time in") :
+        await message.channel.send(await locationinfo.gettime(message.content[7:]))
 
         #placeholder = await message.channel.send("-# Fetching local time 🌍...")
         #result = await locationinfo.gettime(message.content[6:])
@@ -315,18 +322,18 @@ async def on_message(message: discord.Message):
 
 #~~~
 
-    global ollama_client
-    global oll_host
-    if message.content.startswith('ch host') and (message.author.id == moeidnum):
-        if oll_host == oll_winpc_host:
-            oll_host = oll_ubupc_local_host
-            print("✅ changed to ubuntu 🐧")
-            await message.channel.send("✅ 🐧 host changed to Ubuntu!") #, ephemeral=True
-        else:
-            oll_host = oll_winpc_host
-            print("✅ changed to windows")
-            await message.channel.send("✅ 🪟 host changed to Windows!") #, ephemeral=True
-        #ollama_client = ollama.Client(host=f"http://{oll_host}:11434")
+    #global ollama_client
+    #global oll_host
+    #if message.content.startswith('ch host') and (message.author.id == moeidnum):
+    #    if oll_host == oll_winpc_host:
+    #        oll_host = oll_ubupc_local_host
+    #        print("✅ changed to ubuntu 🐧")
+    #        await message.channel.send("✅ 🐧 host changed to Ubuntu!") #, ephemeral=True
+    #    else:
+    #        oll_host = oll_winpc_host
+    #        print("✅ changed to windows")
+    #        await message.channel.send("✅ 🪟 host changed to Windows!") #, ephemeral=True
+    #    #ollama_client = ollama.Client(host=f"http://{oll_host}:11434")
 
 
     if message.channel.id == 1382296618677571654:

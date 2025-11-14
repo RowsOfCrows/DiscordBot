@@ -15,6 +15,7 @@ import json
 import os
 import re
 import datetime
+from concurrent.futures import ThreadPoolExecutor
 from TokensAndKeys import oll_winpc_host, oll_ubupc_local_host
 
 
@@ -29,7 +30,8 @@ CHATBOT_MEMORY_BUFFER = 200
 pathtest = "BotData/bot_talk/chat_history_test"
 path = "BotData/chat_history"
 
-is_busy = False
+# Create a thread pool executor for Ollama calls
+executor = ThreadPoolExecutor(max_workers=4)
 
 @dataclass
 class dogprofiles:
@@ -38,7 +40,6 @@ class dogprofiles:
     keynames: list
     display_name: str = "Jack"
     avatar_url: str = None
-
 
 barkness = dogprofiles(
     name = "Barkness",
@@ -59,7 +60,7 @@ axiom = dogprofiles(
 dogai = dogprofiles(
     name = "DogAI",
     oll_modelname = "DogAI",
-    keynames = ["DogAI", "Dagi"],
+    keynames = ["DogAI", "Dagi", "daggi"],
     display_name = "DogAI",
     avatar_url = "https://raw.githubusercontent.com/Relevant-Name/DiscordBot/main/BotData/DogAI.png"
 )
@@ -81,11 +82,77 @@ class MessageListener(commands.Cog):
         self.moeid = bot.get_user(98200277580009472)
         jack.avatar_url = self.bot.user.display_avatar.url
 
+        self.chat_queue = []
+        self.is_busy = False
+
+        self.random_response_chance = 0.9  # 0.1 = 10% chance to respond randomly
+        self.last_webhook_send = 0  # Track last webhook send time
+        self.webhook_cooldown = 1.0  # 1 second between webhook sends
+
+
+    async def stream_ollama_in_thread(self, ollamamodel, personality_history, profile, whm):
+        """
+        Run the blocking Ollama streaming call in a separate thread.
+        Uses an asyncio Queue to pass chunks back to the main async loop for real-time Discord updates.
+        """
+        chunk_queue = asyncio.Queue()
+        loop = asyncio.get_event_loop()  # Get the loop BEFORE starting the thread
+        
+        def blocking_ollama_stream():
+            """This function runs in a separate thread"""
+            response_stream = ollama.chat(
+                model=ollamamodel, 
+                messages=personality_history, 
+                stream=True
+            )
+            
+            for chunk in response_stream:
+                content = chunk['message']['content']
+                print(content, end='', flush=True)  # print to console for debugging
+                has_punctuation = any(punct in content for punct in ".!?")
+                # Put chunk into queue thread-safely
+                asyncio.run_coroutine_threadsafe(
+                    chunk_queue.put((content, has_punctuation)), 
+                    loop  # Use the loop we captured earlier
+                )
+            
+            # Signal completion
+            asyncio.run_coroutine_threadsafe(
+                chunk_queue.put(None), 
+                loop  # Use the loop we captured earlier
+            )
+        
+        # Start the blocking call in a thread pool (don't await it yet)
+        loop.run_in_executor(executor, blocking_ollama_stream)
+        
+        # Process chunks as they arrive
+        response_str = ""
+        first_chunk = True
+        
+        while True:
+            item = await chunk_queue.get()
+            if item is None:  # Streaming complete
+                break
+                
+            content, has_punctuation = item
+            
+            if first_chunk and response_str == "":
+                await whm.edit(content=f"-# *{profile.name} is typing...*")
+                first_chunk = False
+            
+            response_str += content
+            
+            if has_punctuation:
+                await asyncio.sleep(1)
+                await whm.edit(content=response_str + f"\n-# *{profile.name} is typing...*")
+        
+        return response_str
+
+
     async def chat_with_chatbot(self, usr_msg, profile: dogprofiles, whm=None):
+        
         if not whm:
             whm = await self.sendwebhookmsg(usr_msg, profile)
-
-
 
         await whm.edit(content="-# *Loading...*")
 
@@ -117,20 +184,10 @@ class MessageListener(commands.Cog):
         # Prepare messages for this personality only
         personality_history = chat_history_dict[message_origin][personality_key]
 
-        # Call Ollama with this personality's history
-        response_str = ""
+        # Call Ollama with this personality's history (NOW IN A SEPARATE THREAD!)
         ollamamodel = profile.oll_modelname
-        response_stream = ollama.chat(model=ollamamodel, messages=personality_history, stream=True)
-
-        for chunk in response_stream:
-            if chunk and response_str == "":
-                await whm.edit(content=f"-# *{profile.name} is typing...*")
-            print(chunk['message']['content'], end='', flush=True)      # print message to console for debugging
-
-            response_str += chunk['message']['content']
-            if any(punct in chunk['message']['content'] for punct in ".!?"):
-                await asyncio.sleep(1)
-                await whm.edit(content=response_str + f"\n-# *{profile.name} is typing...*")
+        response_str = await self.stream_ollama_in_thread(ollamamodel, personality_history, profile, whm)
+        
         # Append assistant message to the current personality's history
         personality_history.append({
             'role': 'assistant',
@@ -162,27 +219,17 @@ class MessageListener(commands.Cog):
             json.dump(chat_history_dict, f, indent=2)
 
         # Process next message in queue if exists
-        global chat_queue
-        global is_busy
         try:
-            if chat_queue:
-                next_msg, next_profile, next_whm = chat_queue.pop(0)
-                print(f"Queue size after processing: {len(chat_queue)}")
+            if self.chat_queue:
+                next_msg, next_profile, next_whm = self.chat_queue.pop(0)
+                print(f"Processing next in queue. Remaining: {len(self.chat_queue)}")
                 await self.chat_with_chatbot(next_msg, next_profile, next_whm)
             else:
-                print(f" \n\n\n now not busy!!!\n\n\n")
-                is_busy = False
+                print(f"Queue empty, setting is_busy to False")
+                self.is_busy = False
         except Exception as e:
             print(f"Error processing queue: {e}")
-            is_busy = False
-
-        #if chat_queue:
-        #    next_msg, next_profile, next_whm = chat_queue.pop(0)
-        #    await self.chat_with_chatbot(next_msg, next_profile, next_whm)
-        #else:
-        #    print(f" \n\n\n now not busy!!!\n\n\n")
-        #    is_busy = False
-
+            self.is_busy = False
 
 
     async def log_user_message(self, message: discord.Message):
@@ -227,7 +274,7 @@ class MessageListener(commands.Cog):
         if chatwebhook:
             chatwebhook = chatwebhook[0]
         else:
-            chatwebhook = await bottalkchannel.create_webhook(name="ollamaprofiles")
+            chatwebhook = await c.create_webhook(name="ollamaprofiles")
 
         webhook_message = await chatwebhook.send(
             content=f"-# Loading...",
@@ -238,9 +285,8 @@ class MessageListener(commands.Cog):
         return webhook_message
 
 
-
     @commands.Cog.listener("on_message")
-    async def on_message2(self, message: discord.Message):
+    async def on_message_doglogic(self, message: discord.Message):
 
         if message.channel.id != bottalkchannel: 
             return  # only watch bottalkchannel
@@ -253,54 +299,63 @@ class MessageListener(commands.Cog):
         found_profiles = []
         is_reply_profile = None
         is_reply = False
-        #client.user in message.mentions #if the bot gets mentioned
-        if message.reference and isinstance(message.reference.resolved, discord.Message): # add bot profile of who is being replied to
+        
+        # Check if message is a reply
+        if message.reference and isinstance(message.reference.resolved, discord.Message):
             is_reply = True
-            replied_to = message.reference.resolved # regular discord.message obj
+            replied_to = message.reference.resolved
             for profile in dogprofileslist:
                 for keyname in profile.keynames:
                     if replied_to.author.name == keyname:
                         found_profiles.append((0, profile))
                         is_reply_profile = profile.name
-                        #await self.chat_with_chatbot(replied_to, profile)
-            # Get the displayed webhook username (if this was a webhook message)
-            #print(f"User replied to message from: {replied_to.author.name}")
-            #print(f"Content of replied-to message: {replied_to.content}")
 
         # Detect which personalities were mentioned in the message
         for profile in dogprofileslist:
             for keyname in profile.keynames:
                 if profile.name == is_reply_profile:
-                    continue #skip replied to doggo
+                    continue  # skip replied to doggo
                 index = messagelower.find(keyname.lower())
                 if index != -1:
                     if is_reply:
-                        index += 1 # make sure the replied to doggo is first
+                        index += 1  # make sure the replied to doggo is first
                     found_profiles.append((index, profile))
                     break  # Don't match multiple keynames for the same profile
                     
         # Sort found profiles by earliest mention in the message
         found_profiles.sort(key=lambda x: x[0])
 
-        # add messages to queue if it is handling other messages
-        #global is_busy
-        #if is_busy:
-        #    print("bot is busy, chat queue:")
-        #    print(f"{chat_queue}")
-        #    # send the webhook msg and queue it up
-        #    whm = await self.sendwebhookmsg(message, profile)
-        #    await whm.edit(content=f"-# (Queue: {len(chat_queue) + 1})")
-        #    chat_queue.append((message, profile, whm))
-        #    print("\nAFTER APPEND:")
-        #    print(chat_queue)
-        #    return
-        #is_busy = True
+
+        # Random response logic
+        if not found_profiles:  # Only if no dogs were mentioned
+            if random.random() < self.random_response_chance:
+                random_dog = random.choice(dogprofileslist)
+                found_profiles.append((0, random_dog))
+                print(f"{random_dog.name} randomly decided to respond!")
+
+        # If no profiles found, do nothing
+        if not found_profiles:
+            return
 
 
-        for index, profile in found_profiles:
-            await self.chat_with_chatbot(message, profile)
-
-#~~~~
+        # Queue ALL profiles first, then start processing
+        for i, (index, profile) in enumerate(found_profiles):
+            whm = await self.sendwebhookmsg(message, profile)
+            # Calculate queue position AFTER webhook is created
+            queue_position = len(self.chat_queue) + 1  # This item's position
+            if self.is_busy:
+                await whm.edit(content=f"-# (Queue position: {queue_position})")
+            else:
+                await whm.edit(content=f"-# *Loading...*")
+            self.chat_queue.append((message, profile, whm))
+            print(f"Queued {profile.name} at position {queue_position}. Queue size: {len(self.chat_queue)}")
+        
+        # Start processing if not already busy
+        if not self.is_busy and self.chat_queue:
+            self.is_busy = True
+            next_msg, next_profile, next_whm = self.chat_queue.pop(0)
+            print(f"Starting chat with {next_profile.name}")
+            await self.chat_with_chatbot(next_msg, next_profile, next_whm)
 
 
 async def setup(bot):
