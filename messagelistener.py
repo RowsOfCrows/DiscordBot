@@ -15,14 +15,14 @@ import json
 import os
 import re
 import datetime
-from TokensAndKeys import oll_winpc_host, oll_ubupc_host
+from TokensAndKeys import oll_winpc_host, oll_ubupc_local_host
 
 
 bottalkchannel = 1382296618677571654
 bottalkchannelobject = discord.Object(id=bottalkchannel) 
 
 ollamamodel = "DogAI"
-oll_host = oll_ubupc_host
+oll_host = oll_ubupc_local_host
 
 chat_queue = []
 CHATBOT_MEMORY_BUFFER = 200
@@ -66,7 +66,7 @@ dogai = dogprofiles(
 
 jack = dogprofiles(
     name = "Jack",
-    oll_modelname = "jackwhims",
+    oll_modelname = "JackdogV1",
     keynames = ["Jack", "goodboye"],
     display_name = "Jack",
     avatar_url = "https://raw.githubusercontent.com/Relevant-Name/DiscordBot/main/BotData/DogAI.png"
@@ -283,18 +283,18 @@ class MessageListener(commands.Cog):
         found_profiles.sort(key=lambda x: x[0])
 
         # add messages to queue if it is handling other messages
-        global is_busy
-        if is_busy:
-            print("bot is busy, chat queue:")
-            print(f"{chat_queue}")
-            # send the webhook msg and queue it up
-            whm = await self.sendwebhookmsg(message, profile)
-            await whm.edit(content=f"-# (Queue: {len(chat_queue) + 1})")
-            chat_queue.append((message, profile, whm))
-            print("\nAFTER APPEND:")
-            print(chat_queue)
-            return
-        is_busy = True
+        #global is_busy
+        #if is_busy:
+        #    print("bot is busy, chat queue:")
+        #    print(f"{chat_queue}")
+        #    # send the webhook msg and queue it up
+        #    whm = await self.sendwebhookmsg(message, profile)
+        #    await whm.edit(content=f"-# (Queue: {len(chat_queue) + 1})")
+        #    chat_queue.append((message, profile, whm))
+        #    print("\nAFTER APPEND:")
+        #    print(chat_queue)
+        #    return
+        #is_busy = True
 
 
         for index, profile in found_profiles:
