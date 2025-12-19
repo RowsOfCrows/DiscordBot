@@ -3,6 +3,7 @@ from timezonefinder import TimezoneFinder
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo 
 import json
+from TokensAndKeys import MYEMAIL as ToK
 
 async def lookup_place(place_name):
     url = "https://nominatim.openstreetmap.org/search"
@@ -16,7 +17,7 @@ async def lookup_place(place_name):
         #"extratags": 1
     }
     headers = {
-        "User-Agent": "silly_python_project_im_new_i_hope_this_header_is_ok/1.0 (i1the1dude@gmail.com)"  # required
+        "User-Agent": f"silly_python_project_im_new_i_hope_this_header_is_ok/1.0 ({ToK.myemail})"  # required
     }
 
     response = requests.get(url, params=params, headers=headers)

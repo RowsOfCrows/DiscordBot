@@ -61,6 +61,7 @@ class MyClient(commands.Bot):
         await self.load_extension('cogs.calendarcog')
         await self.load_extension('cogs.devtools')
         await self.load_extension('messagelistener')
+        await self.load_extension('testingimagechat') #formerly supercoolawesome
         #await self.load_extension('cogs.imagey')
 
 intents = discord.Intents.all()
@@ -321,20 +322,6 @@ async def on_message(message: discord.Message):
         await forwardvoicetext(message)
 
 #~~~
-
-    #global ollama_client
-    #global oll_host
-    #if message.content.startswith('ch host') and (message.author.id == moeidnum):
-    #    if oll_host == oll_winpc_host:
-    #        oll_host = oll_ubupc_local_host
-    #        print("✅ changed to ubuntu 🐧")
-    #        await message.channel.send("✅ 🐧 host changed to Ubuntu!") #, ephemeral=True
-    #    else:
-    #        oll_host = oll_winpc_host
-    #        print("✅ changed to windows")
-    #        await message.channel.send("✅ 🪟 host changed to Windows!") #, ephemeral=True
-    #    #ollama_client = ollama.Client(host=f"http://{oll_host}:11434")
-
 
     if message.channel.id == 1382296618677571654:
         return # please ignore other testing chanel for now 
