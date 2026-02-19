@@ -27,7 +27,7 @@ class VoiceInfo:
 
 class PiperVoices(Enum):
     HFC_MALE              = (f"{BD_PIPERVOICES}/en_US-hfc_male-medium.onnx")
-    LESSAC                = (f"{BD_PIPERVOICES}/en_US-lessac-high.onnx")
+    LESSAC                = (f"{BD_PIPERVOICES}/en_US-lessac-medium.onnx")
     NORTHERN_ENGLISH_MALE = (f"{BD_PIPERVOICES}/en_GB-northern_english_male-medium.onnx")
     ARTUR_SL              = (f"{BD_PIPERVOICES}/sl_SI-artur-medium.onnx")
     #  more voices soon maybe idk idc there's a list at the bottom to download if I wanted
