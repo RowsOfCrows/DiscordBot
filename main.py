@@ -20,26 +20,14 @@ import datetime
 #===== Other Files ======   
 import youtubestuff
 import TokensAndKeys
-import redditapi
-import locationinfo
-from messagelistener import oll_host, oll_winpc_host, oll_ubupc_local_host
-
+import src.redditapi as redditapi
+import src.locationinfo as locationinfo
+from TokensAndKeys import OLL_HOST
 logging.basicConfig(level=logging.DEBUG)
 
 
 import socket
 socket.getaddrinfo = lambda *args, **kwargs: [(socket.AF_INET, socket.SOCK_STREAM, 6, '', (args[0], args[1]))]
-
-
-
-chat_queue = []     # bot AI prompt queue in the form of [{discord.message, reference to bot's reply}, ... ]
-is_busy = False     # Is bot busy chatting to another prompt
-CHATBOT_MEMORY_BUFFER = 200  # number of messages to keep in memory from both user and chatbot
-ollama_client = ollama.Client(host=f"http://{oll_host}:11434")
-CURRENT_OLLAMA_MODEL = "jackwhims" 
-
-if not os.path.exists("BotData"):
-    os.makedirs("BotData")
 
 
 guildjackid = 875349586141675582
@@ -58,18 +46,18 @@ class MyClient(commands.Bot):
 
     async def setup_hook(self):
         # load cogs
-        await self.load_extension('cogs.calendarcog')
-        await self.load_extension('cogs.devtools')
-        await self.load_extension('messagelistener')
-        await self.load_extension('testingimagechat') #formerly supercoolawesome
-        #await self.load_extension('cogs.imagey')
+        await self.load_extension('src.calendar')
+        await self.load_extension('src.devtools')
+        await self.load_extension('src.dogmessagelistener')
+        #await self.load_extension('testingimagechat') #formerly supercoolawesome
+        await self.load_extension('src.ttsmsglistener')
 
 intents = discord.Intents.all()
 intents.message_content = True
 #client = commands.Bot(command_prefix='!', intents=intents)
 client = MyClient(intents=intents)
-client.owner_id = 98200277580009472
-client.command_prefix="zz"
+#client.owner_id = 98200277580009472
+#client.command_prefix="zz"
 
 #=============================================
 moeid = client.get_user(98200277580009472)
@@ -90,7 +78,6 @@ async def on_ready():
             voice_channel_list.append(channel.id)
     print(f"appended vc: {voice_channel_list}")
     print('=========================================================')
-
 
 
 #===========================================================
@@ -130,18 +117,15 @@ async def ping(interaction):
 
 @client.tree.command(name="time", description="the local time of any place!")
 async def time(interaction: discord.Interaction, location: str):
-    #eee = await locations.getTimeString(location)
-    eee = await locationinfo.gettime(location)
-    print(eee)
-    await interaction.response.send_message(eee)
+    thetimeinplace = await locationinfo.gettime(location)
+    print(thetimeinplace)
+    await interaction.response.send_message(thetimeinplace)
 
-@client.tree.command(name='sync', description='Owner only')
-async def sync(interaction: discord.Interaction):
-    if interaction.user.id == moeid:
-        await client.tree.sync()
-        print('Command tree synced.')
-    else:
-        await interaction.response.send_message('You must be the owner to use this command!')
+
+
+@client.tree.command(name="cantsleep", description="can't sleep? here's something for you")
+async def ping(interaction):
+    await interaction.response.send_message(f"https://www.youtube.com/watch?v=hk0s-l7GDT0")
 
 #===========================================================
 # Weather
@@ -151,7 +135,9 @@ async def weather(interaction: discord.Interaction, place: str,  time: str = Non
 
     await interaction.response.defer()#wait longer than 3 seconds ty
 
-
+    something = await locationinfo.get_weather(place)
+    print(something)
+    await interaction.followup.send(something)
 
     #if layout is None:
     #    weathermsg = await locations.createweatherembedboxes(place)
@@ -184,22 +170,6 @@ async def weather(interaction: discord.Interaction, place: str,  time: str = Non
 #    channel = await user_id.create_dm()
 #    await channel.send("woof")
 #    await interaction.response.send_message("done",ephemeral=True)
-
-
-
-
-#===========================================================
-# Reddit new and hot
-#===================
-@app_commands.command(name="reddithotpost", description="will post a hot post from the desired subreddit")
-async def reddithot(interaction:discord.Interaction, subreddit: str):
-    embedthis = await redditapi.posthot(subreddit)
-    await interaction.response.send_message(embed=embedthis)
-
-@app_commands.command(name="redditnewpost", description="will post the newest post from the desired subreddit")
-async def redditnew(interaction:discord.Interaction, subreddit: str):
-    embedthis = await redditapi.postnewest(subreddit)
-    await interaction.response.send_message(embed=embedthis)
 
 
 
@@ -251,7 +221,7 @@ async def reset_queue(interaction: discord.Interaction):
 async def reset_history(interaction: discord.Interaction):
     try:
         # Open the file and overwrite it with an empty dictionary
-        with open("BotData/chat_history.json", 'w') as f:
+        with open("LocalData/chat_history.json", 'w') as f:
             json.dump({}, f, indent=4)
 
         await interaction.response.send_message("✅ Chat history has been cleared.")
@@ -330,4 +300,4 @@ async def on_message(message: discord.Message):
 #============================================================
 
 
-client.run(TokensAndKeys.discotoken) 
+client.run(TokensAndKeys.DISCO_TOKEN) 

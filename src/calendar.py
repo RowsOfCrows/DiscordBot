@@ -17,12 +17,12 @@ async def get_day_suffix(day):
         return {1: 'st', 2: 'nd', 3: 'rd'}.get(day % 10, 'th')
 
 async def save_last_posted_date(date_str):
-    with open('BotData/last_posted_cal_img_date.txt', 'w') as file:
+    with open('LocalData/last_posted_cal_img_date.txt', 'w') as file:
         file.write(date_str)
 
 async def load_last_posted_date():
-    if os.path.exists('BotData/last_posted_cal_img_date.txt'):
-        with open('BotData/last_posted_cal_img_date.txt', 'r') as file:
+    if os.path.exists('LocalData/last_posted_cal_img_date.txt'):
+        with open('LocalData/last_posted_cal_img_date.txt', 'r') as file:
             return file.read().strip()
     return None
 

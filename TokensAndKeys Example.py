@@ -1,12 +1,8 @@
-discotoken = "Your Discord Token Here"
-YoutubeApiKey = "yep"
-WeatherApiDotComKey = "I love the weather"
-bingmapsApiKey = "kind of like dnd"
+DISCO_TOKEN      = "Your Discord Token Here"
+YOUTUBE_API_KEY  = "yep"
+REDDIT_API_CREDS = {"client_id":"robotname",
+                    "client_secret":"shhh",
+                    "user_agent":"sneaky"}
 
-redditapicreds = {"client_id":"robotname",
-                   "client_secret":"shhh",
-                   "user_agent":"sneaky"}
-
-
-oll_winpc_host = "localhost"
-oll_ubupc_local_host = "localhost"
+OLL_HOST = "probably localhost"
+MYEMAIL  = "someone@something.com"

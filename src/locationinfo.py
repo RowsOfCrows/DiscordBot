@@ -3,7 +3,9 @@ from timezonefinder import TimezoneFinder
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo 
 import json
-from TokensAndKeys import MYEMAIL as ToK
+from TokensAndKeys import MYEMAIL
+from datetime import datetime
+
 
 async def lookup_place(place_name):
     url = "https://nominatim.openstreetmap.org/search"
@@ -17,7 +19,7 @@ async def lookup_place(place_name):
         #"extratags": 1
     }
     headers = {
-        "User-Agent": f"silly_python_project_im_new_i_hope_this_header_is_ok/1.0 ({ToK.myemail})"  # required
+        "User-Agent": f"silly_python_project_im_new_i_hope_this_header_is_ok/1.0 ({MYEMAIL})"  # required
     }
 
     response = requests.get(url, params=params, headers=headers)
@@ -112,7 +114,6 @@ async def get_weather(whatplace):
     data = resp.json()
     print(json.dumps(data, indent=2)) #, sort_keys=True
 
-
     
     # --- Current Weather ---
     current = data.get("current_weather", {})
@@ -158,34 +159,20 @@ async def get_weather(whatplace):
         arrow = arrow_for_angle(wd)
         print(f"{hour}: {ws} km/h {wd}{arrow}")
 
-    return data
-
-if __name__ == "__main__":
-    lat = 39.2904   # example: Baltimore, MD
-    lon = -76.6122
-    import asyncio
-
-
-    weather =asyncio.run(get_weather("owings mills"))
-
-
-    #asyncio.run(gettime("maryland"))
-
-
-    #print(weather)  # inspect what the JSON gives
+    dt = datetime.fromisoformat(time)
+    time_formatted = dt.strftime("%-I:%M %p") 
+    date_formatted = dt.strftime("%b %-d, %Y")
+    tempweatheroutput = (
+        f"Weather for **{placename}**\n"
+        f"```ansi\n"
+        f"Current Temperature: {temperature}°C\n"
+        f"Today's Low: {t_min}°C / High: {t_max}°C\n"
+        f"Wind Speed: {windspeed} km/h\n"
+        #f"Reported at: {date_formatted} {time_formatted}" # it's nearest 15 minutes, so not super useful to show exact time
+        f"```")
+    return tempweatheroutput
 
 
-
-    # Extract current weather
-    #current = weather.get("current_weather")"""  """
-    #if current:
-    #    print("Current temperature:", current.get("temperature"))
-    ## Extract hourly
-    #hourly = weather.get("hourly", {})
-    #times = hourly.get("time", [])
-    #temps = hourly.get("temperature_2m", [])
-    #for t, temp in zip(times, temps):
-    #    print(t, temp)
 
 
 

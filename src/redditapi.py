@@ -1,5 +1,5 @@
 import asyncpraw
-from TokensAndKeys import redditapicreds
+from TokensAndKeys import REDDIT_API_CREDS
 import asyncio
 import discord
 import random
@@ -18,9 +18,9 @@ calandardayimage = None
 #==========
 async def get_reddit_instance():
     async with asyncpraw.Reddit(
-        client_id = redditapicreds["client_id"],
-        client_secret = redditapicreds["client_secret"],
-        user_agent = redditapicreds["user_agent"],
+        client_id = REDDIT_API_CREDS["client_id"],
+        client_secret = REDDIT_API_CREDS["client_secret"],
+        user_agent = REDDIT_API_CREDS["user_agent"],
     ) as reddit:
         yield reddit # only returns one session and closes it :)
 

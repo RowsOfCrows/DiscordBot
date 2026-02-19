@@ -15,6 +15,7 @@ import json
 import os
 import re
 import datetime
+import io
 
 import aiohttp
 import base64
@@ -22,20 +23,21 @@ from io import BytesIO
 from PIL import Image
 
 from concurrent.futures import ThreadPoolExecutor
-from TokensAndKeys import oll_winpc_host, oll_ubupc_local_host
 
-import dogprompts
+import src.dogprompts as dogprompts
+from src.botfilepaths import LOCALDATA_DIR
+LD_DIR_DOGCHATHISTORY = os.path.join(LOCALDATA_DIR, "dog_chat_history")
+print(f"[PATH] Saving chat history to: {LD_DIR_DOGCHATHISTORY}.json")
 
 bottalkchannel = 1382296618677571654
 bottalkchannelobject = discord.Object(id=bottalkchannel) 
 
 ollamamodel = "DogAI"
-oll_host = oll_ubupc_local_host
 
 chat_queue = []
 CHATBOT_MEMORY_BUFFER = 200
-pathtest = "BotData/bot_talk/chat_history_test"
-path = "BotData/chat_history"
+
+
 
 # Create a thread pool executor for Ollama calls
 executor = ThreadPoolExecutor(max_workers=4)
@@ -93,6 +95,7 @@ class MessageListener(commands.Cog):
         self.bot = bot
         self.moeid = bot.get_user(98200277580009472)
         jack.avatar_url = self.bot.user.display_avatar.url
+        self.oll_modelname = "llamatest"
 
         self.chat_queue = []
         self.is_busy = False
@@ -175,99 +178,89 @@ class MessageListener(commands.Cog):
             await self.chat_with_chatbot(next_msg, next_profile, next_whm)
 
     async def chat_with_chatbot(self, usr_msg, profile: dogprofiles, whm=None):
-        
         if not whm:
             whm = await self.sendwebhookmsg(usr_msg, profile)
         await whm.edit(content="-# *Loading...*")
 
-        # Determine conversation key
-        if usr_msg.guild is not None:
-            message_origin = str(usr_msg.guild.id)
-        else:
-            message_origin = str(usr_msg.author.id)
+        # Determine conversation key (guild or DM)
+        message_origin = str(usr_msg.guild.id) if usr_msg.guild else str(usr_msg.author.id)
 
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        if not os.path.exists(f"{path}.json"):
-            with open(f"{path}.json", 'w') as f:
+        # Load chat history
+        os.makedirs(os.path.dirname(LD_DIR_DOGCHATHISTORY), exist_ok=True)
+        if not os.path.exists(f"{LD_DIR_DOGCHATHISTORY}.json"):
+            with open(f"{LD_DIR_DOGCHATHISTORY}.json", 'w') as f:
                 json.dump({}, f)
-        with open(f"{path}.json", 'r') as f:
+
+        with open(f"{LD_DIR_DOGCHATHISTORY}.json", 'r') as f:
             try:
                 chat_history_dict = json.load(f)
             except json.JSONDecodeError:
                 chat_history_dict = {}
 
-        # Ensure entry for this conversation exists
-        if message_origin not in chat_history_dict:
-            chat_history_dict[message_origin] = {}
+        # Ensure entries exist for this origin and personality
+        personality_history = chat_history_dict \
+            .setdefault(message_origin, {}) \
+            .setdefault(profile.name, [])
 
-        # Ensure entry for this personality exists
-        personality_key = profile.name
-        if personality_key not in chat_history_dict[message_origin]:
-            chat_history_dict[message_origin][personality_key] = []
-
-        # Prepare messages for this personality only
-        personality_history = chat_history_dict[message_origin][personality_key]
-
-        # Modifying the payload message
-        # Check for image in the message
+        # If the user attached an image, describe it and append the description to their message
         imgurl = await self.get_image_from_message(usr_msg)
         if imgurl:
             await whm.edit(content="-# loading image description...")
             print(f"Image URL found: {imgurl}")
-            description = await self.send_img_to_interrogate(imgurl, usr_msg.content)
-            print(f"Image description: {description}\n")
-            # Append image description to the last user message 
-            personality_history[-1]['content'] += f"\nDescription of image the user posted: {description}"
-            await self.log_append_image_description(usr_msg, description)
-        # Insert empty assistant message before the last user message (if history exists)
-        if len(personality_history) > 0:
-            personality_history = personality_history[:-1] + [
-                {"role": "assistant", "content": ""}
-            ] + personality_history[-1:]
-        
-        # Call Ollama with this personalities history
-        ollamamodel = profile.oll_modelname
-        response_str = await self.stream_ollama_in_thread(ollamamodel, personality_history, profile, whm)
-        
-        # Append assistant message to the current personalities history
-        personality_history.append({
-            'role': 'assistant',
-            'content': response_str
-        })
+            img_description = await self.send_img_to_interrogate(imgurl, usr_msg.content)
+            print(f"Image description: {img_description}\n")
+            personality_history[-1]['content'] += f"\nDescription of image the user posted: {img_description}"
+            await self.log_append_image_description(usr_msg, img_description)
 
-        # log it as a user message in all other personalities histories
-        for doggoprofile in dogprofileslist:
-            other_personality = doggoprofile.name
-            if other_personality == personality_key:
-                continue  # skip the current responding personality
+        # Insert an empty assistant message before the last user message to guide the model
+        if personality_history:
+            personality_history.insert(-1, {"role": "assistant", "content": ""})
 
-            if other_personality not in chat_history_dict[message_origin]:
-                chat_history_dict[message_origin][other_personality] = []
+        # Build full history with system prompt and send to Ollama
+        full_history = [{"role": "system", "content": profile.dogprompts}] + personality_history
+        response_str = await self.stream_ollama_in_thread(self.oll_modelname, full_history, profile, whm)
 
-            # Prune if needed
-            while len(chat_history_dict[message_origin][other_personality]) >= CHATBOT_MEMORY_BUFFER:
-                chat_history_dict[message_origin][other_personality].pop(0)
+        # Save the assistant's response to this personality's history
+        personality_history.append({"role": "assistant", "content": response_str})
 
-            chat_history_dict[message_origin][other_personality].append({
-                'role': 'user',
-                'content': f"{profile.display_name} says: {response_str}"
+        # Log this response as a user message in all other personalities' histories
+        for other_profile in dogprofileslist:
+            if other_profile.name == profile.name:
+                continue
+
+            other_history = chat_history_dict[message_origin].setdefault(other_profile.name, [])
+
+            while len(other_history) >= CHATBOT_MEMORY_BUFFER:
+                other_history.pop(0)
+
+            other_history.append({
+                "role": "user",
+                "content": f"{profile.display_name} says: {response_str}"
             })
 
-        description = description.strip("\n")
-        await whm.edit(content=f"{response_str} \n\n-# [Image description that is usually terribly wrong] {description}")
+        # Edit the webhook message with the final response
+        if imgurl:
+            description_inline = img_description.replace("\n", " ")
+            await whm.edit(content=f"{response_str}\n\n-# [Img desc debug] {description_inline}")
+        else:
+            await whm.edit(content=response_str)
 
-        # Save updated chat history dict
-        with open(f"{path}.json", 'w') as f:
+        # Remove the empty assistant placeholder before saving
+        personality_history = [msg for msg in personality_history if not (msg["role"] == "assistant" and msg["content"] == "")]
+        chat_history_dict[message_origin][profile.name] = personality_history
+
+        # Save updated history to disk
+        with open(f"{LD_DIR_DOGCHATHISTORY}.json", 'w') as f:
             json.dump(chat_history_dict, f, indent=2)
 
-        # Process next message in queue if exists
+        # Process the next queued message if one exists
         try:
             if self.chat_queue:
                 next_msg, next_profile, next_whm = self.chat_queue.pop(0)
                 print(f"Processing next in queue. Remaining: {len(self.chat_queue)}")
                 await self.chat_with_chatbot(next_msg, next_profile, next_whm)
             else:
-                print(f"Queue empty, setting is_busy to False")
+                print("Queue empty, setting is_busy to False")
                 self.is_busy = False
         except Exception as e:
             print(f"Error processing queue: {e}")
@@ -280,11 +273,11 @@ class MessageListener(commands.Cog):
         else:
             message_origin = str(message.author.id)
 
-        os.makedirs(os.path.dirname(path), exist_ok=True)
-        if not os.path.exists(f"{path}.json"):
-            with open(f"{path}.json", 'w') as f:
+        os.makedirs(os.path.dirname(LD_DIR_DOGCHATHISTORY), exist_ok=True)
+        if not os.path.exists(f"{LD_DIR_DOGCHATHISTORY}.json"):
+            with open(f"{LD_DIR_DOGCHATHISTORY}.json", 'w') as f:
                 json.dump({}, f)
-        with open(f"{path}.json", 'r') as f:
+        with open(f"{LD_DIR_DOGCHATHISTORY}.json", 'r') as f:
             try:
                 chat_history_dict = json.load(f)
             except json.JSONDecodeError:
@@ -307,8 +300,9 @@ class MessageListener(commands.Cog):
                 'content': f"{message.author.display_name} says: {message.content}"
             })
 
-        with open(f"{path}.json", 'w') as f:
+        with open(f"{LD_DIR_DOGCHATHISTORY}.json", 'w') as f:
             json.dump(chat_history_dict, f, indent=2)
+        print(f"[SAVE] {message_origin} saved.")
 
     async def log_append_image_description(self, message, description):
         if message.guild is not None:
@@ -316,7 +310,7 @@ class MessageListener(commands.Cog):
         else:
             message_origin = str(message.author.id)
 
-        with open(f"{path}.json", "r") as f:
+        with open(f"{LD_DIR_DOGCHATHISTORY}.json", "r") as f:
             chat_history_dict = json.load(f)
 
         for profile in dogprofileslist:
@@ -329,7 +323,7 @@ class MessageListener(commands.Cog):
                 f"\nDescription of image the user posted: {description}"
             )
 
-        with open(f"{path}.json", "w") as f:
+        with open(f"{LD_DIR_DOGCHATHISTORY}.json", "w") as f:
             json.dump(chat_history_dict, f, indent=2)
 
     async def sendwebhookmsg(self, message, profile:dogprofiles):
@@ -433,6 +427,14 @@ class MessageListener(commands.Cog):
             if resp.status != 200:
                 raise Exception(f"Failed to download image: {resp.status}")
             image_bytes = await resp.read()
+
+
+            with Image.open(io.BytesIO(image_bytes)) as img:
+                img = img.convert("RGB")  # bakllava prefers RGB
+                buf = io.BytesIO()
+                img.save(buf, format="PNG")
+                png_bytes = buf.getvalue()
+
             return base64.b64encode(image_bytes).decode("utf-8")
 
 
