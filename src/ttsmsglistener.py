@@ -10,6 +10,7 @@ import wave
 import tempfile
 from piper import PiperVoice
 import json
+import subprocess
 
 from src.botfilepaths import BOTDATA_DIR, LOCALDATA_DIR
 
@@ -19,11 +20,6 @@ LD_TEMPTTS  = os.path.join(LOCALDATA_DIR, "temptts")
 #LD_USERDATA = os.path.join(LOCALDATA_DIR, "UserData")
 user_tts_settings = os.path.join(LOCALDATA_DIR, "UserData", "tts_user_settings.json")
 
-
-@dataclass
-class VoiceInfo:
-    name: str
-    file: str
 
 class PiperVoices(Enum):
     HFC_MALE              = (f"{BD_PIPERVOICES}/en_US-hfc_male-medium.onnx")
@@ -45,6 +41,18 @@ class PiperVoices(Enum):
     # What goes in JSON
     def to_json(self) -> str:
         return self.name
+
+    def voice_name(self) -> str:
+        # Extract "en_US-lessac-medium" from the full path
+        return os.path.splitext(os.path.basename(self.value))[0]
+
+    def ensure_downloaded(self):
+        if not os.path.exists(self.value):
+            print(f"[TTS] Downloading missing voice: {self.voice_name()}")
+            subprocess.run(
+                ["python3", "-m", "piper.download_voices", self.voice_name()],
+                check=True
+            )
 
     @classmethod
     def from_json(cls, name: str) -> "PiperVoices":
@@ -113,14 +121,20 @@ def update_user_settings(user_id: int, **kwargs) -> dict:
 
 
 
+tts_settings_group = app_commands.Group(name="tts", description="Configure settings")
+
 class TTSListener(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        bot.tree.add_command(tts_settings_group)
         self.disconnect_task = None 
         self._voice_cache: dict[PiperVoices, PiperVoice] = {}
         self._queues: dict[int, asyncio.Queue] = {}       # guild_id -> Queue
         self._workers: dict[int, asyncio.Task] = {}       # guild_id -> worker Task
         self._now_playing: dict[int, int] = {}  # guild_id -> user_id
+        os.makedirs(BD_PIPERVOICES, exist_ok=True)
+        for voice in PiperVoices:
+            voice.ensure_downloaded()
 
     def _get_queue(self, guild_id: int) -> asyncio.Queue:
         if guild_id not in self._queues:
@@ -198,13 +212,20 @@ class TTSListener(commands.Cog):
             os.remove(os.path.join(LD_TEMPTTS, f))
 
 
-    @app_commands.command (name="ttsconfig", description="Reads your messages outloud in voice channels.") #just type in any channel in the server to speak. You can also set your preferred voice here.
+    @tts_settings_group.command (name="settings", description="Reads your messages outloud in voice channels.") #just type in any channel in the server to speak. You can also set your preferred voice here.
     @app_commands.describe(voice="What do you want to sound like?",
                            tts_enabled="Read your messages outloud from any channel",
-                           length_scale="Speaking speed (0.5 = fast, 2.0 = slow)",
-                           noise_scale="Audio variation (0.0 to 1.0)",
-                           noise_w_scale="Speaking variation (0.0 to 1.0)",
-                           normalize_audio="Use raw audio",)
+                           length_scale="(0.5 = fast, 2.0 = slow)",
+                           noise_scale="(0.0 to 1.0)",
+                           noise_w_scale="(0.0 to 1.0)",
+                           normalize_audio="Normalize audio",)
+    @app_commands.rename(
+                           tts_enabled="enable_tts",
+                           length_scale="speaking_speed",
+                           noise_scale="audio_variation",
+                           noise_w_scale="speaking_variation",
+                           normalize_audio="raw_audio",
+                           )
     @app_commands.choices (voice=[app_commands.Choice(name=v.display_name, value=v.name) for v in PiperVoices],)
     async def ttsconfig(self, interaction: discord.Interaction,
                         tts_enabled: bool | None = None, 
@@ -230,21 +251,23 @@ class TTSListener(commands.Cog):
             await interaction.followup.send(f"❌ Couldn't save settings ❌\n⚠️ {error_lines}")
             return
 
+        def ansi_bool(val: bool) -> str:
+            return f"\u001b[2;36m{val}\u001b[0m" if val else f"\u001b[2;31m{val}\u001b[0m"
         # Show them their full current settings after saving
         current = get_user_settings(interaction.user.id)
         await interaction.followup.send(
             f"✅ Settings saved! Your current config:\n"
-            f"```ansi\n"
-            f"TTS Enabled:     {current['tts_enabled']}\n"
+            f"```ansi\n[2;34m"
+            f"TTS Enabled:     {ansi_bool(current['tts_enabled'])}\u001b[2;34m\n"
             f"Voice:           {current['voice']}\n"
             f"Length scale:    {current['length_scale']}\n"
             f"Noise scale:     {current['noise_scale']}\n"
             f"Noise W scale:   {current['noise_w_scale']}\n"
-            f"Normalize audio: {current['normalize_audio']}\n"
+            f"Normalize audio: {current['normalize_audio']}\n[0m"
             f"```"
         )
 
-    @app_commands.command(name="ttsadmintoggle", description="Admin: toggle TTS for a user.")
+    @tts_settings_group.command(name="admintoggle", description="Admin: toggle TTS for a user.")
     @app_commands.describe(user="The user to modify", tts_enabled="Enable or disable their TTS")
     @app_commands.checks.has_permissions(administrator=True)
     async def ttsadmin(self, interaction: discord.Interaction,
@@ -271,7 +294,7 @@ class TTSListener(commands.Cog):
             , ephemeral=not is_admin
         )
 
-    @app_commands.command(name="ttsskip", description="Skip the currently playing TTS message.")
+    @tts_settings_group.command(name="skip", description="Skip the currently playing TTS message.")
     async def ttsskip(self, interaction: discord.Interaction):
         now_playing_id = self._now_playing.get(interaction.guild.id)
         member = interaction.guild.get_member(now_playing_id)
