@@ -73,16 +73,16 @@ async def gettime(whatplace):
     current_dst = now.dst()
     date_iter = now
     for _ in range(365):  # check next year max
-        date_iter += timedelta(days=1)
+        date_iter += timedelta(days=1) # Tomorrow
         if date_iter.dst() != current_dst:
             # handle Windows vs Unix strftime day format
             #day_format = "%-d" if os.name != "nt" else "%#d" 
             #next_change = date_iter.strftime(f"%b {day_format}, %Y")
             next_change = date_iter.strftime("%b %-d") #, %Y
             if dst_active:
-                dst_info = f"Daylight Savings ends {next_change}"
+                dst_info = f"Clocks go back {next_change}" #Ends
             else:
-                dst_info = f"Daylight Savings starts {next_change}"
+                dst_info = f"Clocks go forward {next_change}" #Starts
             break
         else:
             dst_info = "Does not observe Daylight Savings"
