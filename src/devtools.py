@@ -16,21 +16,35 @@ class DevTools(commands.Cog):
     async def devtoolslistener(self, message):
         if message.author.bot:
             return 
-        #if message.author is not self.moeidnum:
-        #    return
+        if message.author.id != self.moeidnum:
+            return
         
-        if message.content.startswith('sync commands plz') and (message.author.id == self.moeidnum):
+        if message.content.startswith('sync commands plz'):
             print(f"App commands registered in tree: {[cmd.name for cmd in self.bot.tree.get_commands()]}")
 
             self.bot.tree.copy_global_to(guild=self.guildobject)
             synced = await self.bot.tree.sync(guild=self.guildobject)
             print(f"Synced {len(synced)} command(s) to the test guild.")
 
-        if message.content.startswith('sync clear plz') and (message.author.id == self.moeidnum):
+        if message.content.startswith('sync clear plz'):
             self.bot.tree.clear_commands(guild=self.guildobject)
             print("✅ Cleared guild commands.")
         
-        if message.content.startswith('!sync') and message.author.id == self.moeidnum:
+
+        if message.content.startswith('synclist'):
+            # synclist <guild_id>
+            # synclist 
+            parts = message.content.split()
+            if len(parts) > 1:  
+                guild = discord.Object(id=int(parts[1]))
+                cmds = await self.bot.tree.fetch_commands(guild=guild)
+                print(f"{[cmd.name for cmd in cmds]}")
+            else: 
+                global_cmds = await self.bot.tree.fetch_commands(guild=message.guild)
+                print(f"Global: {[cmd.name for cmd in global_cmds]}")
+        
+
+        if message.content.startswith('!sync'):
             # sync <guild_id> clear
             # sync <guild_id>
             
