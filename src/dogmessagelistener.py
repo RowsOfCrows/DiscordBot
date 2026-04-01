@@ -90,6 +90,10 @@ jack = dogprofiles(
 dogprofileslist = [barkness, jack, axiom, dogai]
 
 
+
+dogcommand_settings_group = app_commands.Group(name="dogchat", description="Configure settings")
+
+
 class MessageListener(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
@@ -100,13 +104,21 @@ class MessageListener(commands.Cog):
         self.chat_queue = []
         self.is_busy = False
 
-        self.random_response_chance = 0.7  # 0.1 = 10% chance to respond randomly
+        self.random_response_chance = 0  # 0.1 = 10% chance to respond randomly 
+        #TODO ADD RANDOM TO COMMAND SO INDIVIDUAL CHANNELS CAN HAVE THEIR OWN RANDOM RESPONSE CHANCES
+
         self.last_webhook_send = 0  # Track last webhook send time
         self.webhook_cooldown = 1.0  # 1 second between webhook sends
         self.session = aiohttp.ClientSession()
+
+        bot.tree.add_command(dogcommand_settings_group)
     
     @commands.Cog.listener("on_message")
     async def on_message_doglogic(self, message: discord.Message):
+
+        #TODO add a command to turn the webhooky bots on
+        #TODO add a command to set the random response chance per channel
+        # the history works as per server, not per channel
 
         if message.channel.id != bottalkchannel: 
             return  # only watch bottalkchannel
@@ -146,7 +158,7 @@ class MessageListener(commands.Cog):
         found_profiles.sort(key=lambda x: x[0])
 
 
-        # Random response logic
+        # Random response logic #TODO random logic per channel
         if not found_profiles:  # Only if no dogs were mentioned
             if random.random() < self.random_response_chance:
                 random_dog = random.choice(dogprofileslist)
@@ -160,7 +172,13 @@ class MessageListener(commands.Cog):
 
         # Queue ALL profiles first, then start processing
         for i, (index, profile) in enumerate(found_profiles):
-            whm = await self.sendwebhookmsg(message, profile)
+            whm = await self.sendwebhookmsg(profile, message)
+
+            if whm is None:
+                print(f"[on_dog_logic] Failed to create webhook message - Guild: {message.guild.id}, Channel: {message.channel.id}, Skipping.")
+                await self.bot.get_channel(message.channel.id).send(content=f"-# Webhook creation error. Please have your administrator contact Bot Creator.")
+                break
+
             # Calculate queue position after webhook is created
             queue_position = len(self.chat_queue) + 1  # This item's position
             if self.is_busy:
@@ -177,13 +195,13 @@ class MessageListener(commands.Cog):
             print(f"Starting chat with {next_profile.name}")
             await self.chat_with_chatbot(next_msg, next_profile, next_whm)
 
-    async def chat_with_chatbot(self, usr_msg, profile: dogprofiles, whm=None):
+    async def chat_with_chatbot(self, message: discord.Message, profile: dogprofiles, whm=None):
         if not whm:
-            whm = await self.sendwebhookmsg(usr_msg, profile)
+            whm = await self.sendwebhookmsg(profile, message)
         await whm.edit(content="-# *Loading...*")
 
         # Determine conversation key (guild or DM)
-        message_origin = str(usr_msg.guild.id) if usr_msg.guild else str(usr_msg.author.id)
+        message_origin = str(message.guild.id) if message.guild else str(message.author.id)
 
         # Load chat history
         os.makedirs(os.path.dirname(LD_DIR_DOGCHATHISTORY), exist_ok=True)
@@ -202,56 +220,57 @@ class MessageListener(commands.Cog):
             .setdefault(message_origin, {}) \
             .setdefault(profile.name, [])
 
-        # If the user attached an image, describe it and append the description to their message
-        imgurl = await self.get_image_from_message(usr_msg)
+        # If the user attached an image, describe it and append the description to the history
+        imgurl = await self.get_image_from_message(message)
         if imgurl:
             await whm.edit(content="-# loading image description...")
             print(f"Image URL found: {imgurl}")
-            img_description = await self.send_img_to_interrogate(imgurl, usr_msg.content)
+            img_description = await self.send_img_to_interrogate(imgurl, message.content)
             print(f"Image description: {img_description}\n")
             personality_history[-1]['content'] += f"\nDescription of image the user posted: {img_description}"
-            await self.log_append_image_description(usr_msg, img_description)
+            await self.log_append_image_description(message, img_description)
 
         # Insert an empty assistant message before the last user message to guide the model
         if personality_history:
             personality_history.insert(-1, {"role": "assistant", "content": ""})
 
-        # Build full history with system prompt and send to Ollama
+        # Build full history with system prompt, send to Ollama, and post response
         full_history = [{"role": "system", "content": profile.dogprompts}] + personality_history
-        response_str = await self.stream_ollama_in_thread(self.oll_modelname, full_history, profile, whm)
 
-        # Save the assistant's response to this personality's history
-        personality_history.append({"role": "assistant", "content": response_str})
+        try:
+            response_str = await self.stream_ollama_in_thread(self.oll_modelname, full_history, profile, whm,
+                                                            imgurl=imgurl, img_description=img_description if imgurl else None
+                                                            )
 
-        # Log this response as a user message in all other personalities' histories
-        for other_profile in dogprofileslist:
-            if other_profile.name == profile.name:
-                continue
+            # Save the assistant's response to this personality's history
+            personality_history.append({"role": "assistant", "content": response_str})
 
-            other_history = chat_history_dict[message_origin].setdefault(other_profile.name, [])
+            # Log this response as a user message in all other personalities' histories
+            for other_profile in dogprofileslist:
+                if other_profile.name == profile.name:
+                    continue
 
-            while len(other_history) >= CHATBOT_MEMORY_BUFFER:
-                other_history.pop(0)
+                other_history = chat_history_dict[message_origin].setdefault(other_profile.name, [])
 
-            other_history.append({
-                "role": "user",
-                "content": f"{profile.display_name} says: {response_str}"
-            })
+                while len(other_history) >= CHATBOT_MEMORY_BUFFER:
+                    other_history.pop(0)
 
-        # Edit the webhook message with the final response
-        if imgurl:
-            description_inline = img_description.replace("\n", " ")
-            await whm.edit(content=f"{response_str}\n\n-# [Img desc debug] {description_inline}")
-        else:
-            await whm.edit(content=response_str)
+                other_history.append({
+                    "role": "user",
+                    "content": f"{profile.display_name} says: {response_str}"
+                })
 
-        # Remove the empty assistant placeholder before saving
-        personality_history = [msg for msg in personality_history if not (msg["role"] == "assistant" and msg["content"] == "")]
-        chat_history_dict[message_origin][profile.name] = personality_history
+            # Remove the empty assistant placeholder before saving
+            personality_history = [msg for msg in personality_history if not (msg["role"] == "assistant" and msg["content"] == "")]
+            chat_history_dict[message_origin][profile.name] = personality_history
 
-        # Save updated history to disk
-        with open(f"{LD_DIR_DOGCHATHISTORY}.json", 'w') as f:
-            json.dump(chat_history_dict, f, indent=2)
+            # Save updated history to disk
+            with open(f"{LD_DIR_DOGCHATHISTORY}.json", 'w') as f:
+                json.dump(chat_history_dict, f, indent=2)
+
+        except Exception as e:
+            print(f"[Chat_With_Chatbot] Error processing ollama response, response not saved: {e}")
+
 
         # Process the next queued message if one exists
         try:
@@ -304,7 +323,7 @@ class MessageListener(commands.Cog):
             json.dump(chat_history_dict, f, indent=2)
         print(f"[SAVE] {message_origin} saved.")
 
-    async def log_append_image_description(self, message, description):
+    async def log_append_image_description(self, message: discord.Message, description):
         if message.guild is not None:
             message_origin = str(message.guild.id)
         else:
@@ -326,13 +345,23 @@ class MessageListener(commands.Cog):
         with open(f"{LD_DIR_DOGCHATHISTORY}.json", "w") as f:
             json.dump(chat_history_dict, f, indent=2)
 
-    async def sendwebhookmsg(self, message, profile:dogprofiles):
-        c = self.bot.get_channel(bottalkchannel)
-        chatwebhook = await c.webhooks()
-        if chatwebhook:
-            chatwebhook = chatwebhook[0]
-        else:
-            chatwebhook = await c.create_webhook(name="ollamaprofiles")
+    async def sendwebhookmsg(self, profile:dogprofiles, message: discord.Message):
+        c = self.bot.get_channel(message.channel.id)
+        #c = self.bot.get_channel(bottalkchannel) 
+        try:
+            chatwebhook = await c.webhooks()
+            if chatwebhook:
+                chatwebhook = chatwebhook[0]
+            else:
+                chatwebhook = await c.create_webhook(name="ollamaprofiles")
+        except Exception as e:
+            print(f"[Sendwebhookmsg] Error creating/getting webhook: {e}")
+            #TODO idk what to do exactly 
+            #TODO fallback to sending normal message if webhook fails
+            print(f"[Sendwebhookmsg] Failed to create webhook message - Guild: {message.guild.id}, Channel: {message.channel.id}")
+            #await self.bot.get_channel(message.channel.id).send(content=f"-# Webhook creation error. Please have your administrator contact Bot Creator.")
+
+            return None
 
         webhook_message = await chatwebhook.send(
             content=f"-# Loading...",
@@ -342,7 +371,7 @@ class MessageListener(commands.Cog):
         )
         return webhook_message
 
-    async def stream_ollama_in_thread(self, ollamamodel, personality_history, profile, whm):
+    async def stream_ollama_in_thread(self, ollamamodel, personality_history, profile, whm, imgurl=None, img_description=None):
         """
         Run the blocking Ollama streaming call in a separate thread.
         Uses an asyncio Queue to pass chunks back to the main async loop for real-time Discord updates.
@@ -374,13 +403,17 @@ class MessageListener(commands.Cog):
                 loop  # Use the loop we captured earlier
             )
         
-        # Start the blocking call in a thread pool (don't await it yet)
+        # Start the blocking call in a thread pool (don't await)
         loop.run_in_executor(executor, blocking_ollama_stream)
         
         # Process chunks as they arrive
         response_str = ""
         first_chunk = True
-        
+        #istyping_suffix = f"\n-# *{profile.name} is typing...*"
+        MAX_LEN = 2000
+        current_message = whm
+
+        counter = 0
         while True:
             item = await chunk_queue.get()
             if item is None:  # Streaming complete
@@ -389,15 +422,35 @@ class MessageListener(commands.Cog):
             content, has_punctuation = item
             
             if first_chunk and response_str == "":
-                await whm.edit(content=f"-# *{profile.name} is typing...*")
+                await current_message.edit(content=f"-# *{profile.name} is typing...*")
                 first_chunk = False
             
+            # Check if adding this chunk would overflow the current message
+            if len(response_str) + len(content) > MAX_LEN:
+                print("Max message length reached, sending new webhook msg.")
+                # Finalize the current message (remove the typing suffix)
+                await current_message.edit(content=response_str)
+                # Start a new message
+                current_message = await self.sendwebhookmsg(profile)
+                response_str = ""
+
+
             response_str += content
             
             if has_punctuation:
                 await asyncio.sleep(1)
-                await whm.edit(content=response_str + f"\n-# *{profile.name} is typing...*")
-        
+                await current_message.edit(content=response_str + f"\n-# *{profile.name} is typing...*")
+
+        # send last update without the typing suffix
+        if imgurl:
+            description_inline = img_description.replace("\n", " ")
+            debug_suffix = f"\n\n-# {description_inline}"
+            # Truncate response_str if the suffix would push it over the limit
+            max_response_len = 2000 - len(debug_suffix)
+            await current_message.edit(content=f"{response_str[:max_response_len]}{debug_suffix}")
+        else:
+            await current_message.edit(content=response_str)
+
         return response_str
 
 
@@ -467,6 +520,18 @@ class MessageListener(commands.Cog):
         
         return None
 
+
+    @app_commands.command(name="toggle", description="enable dog chat")
+    async def dogchattoggle(self, interaction: discord.Interaction, place: str,  time: str = None):
+
+        await interaction.response.defer()#wait longer than 3 seconds ty
+        await interaction.followup.send("Dog chat enabled! (not really, this command is a placeholder)")
+
+    @app_commands.command(name="random", description="set random dog response chance (0-1)")
+    async def dogchattogglerandom(self, interaction: discord.Interaction, place: str,  time: str = None):
+
+        await interaction.response.defer()#wait longer than 3 seconds ty
+        await interaction.followup.send(f"Dogs will randomly respond at a rate of %")
 
     async def cog_unload(self):
         await self.session.close()
