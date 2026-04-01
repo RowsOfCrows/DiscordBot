@@ -20,7 +20,6 @@ import datetime
 #===== Other Files ======   
 import youtubestuff
 import TokensAndKeys
-import src.redditapi as redditapi
 import src.locationinfo as locationinfo
 from TokensAndKeys import OLL_HOST
 logging.basicConfig(level=logging.DEBUG)
@@ -46,9 +45,11 @@ class MyClient(commands.Bot):
 
     async def setup_hook(self):
         # load cogs
-        await self.load_extension('src.calendar')
+        await self.load_extension('src.calendar_utils')
         await self.load_extension('src.devtools')
         await self.load_extension('src.dogmessagelistener')
+        await self.load_extension('src.locationinfo')
+        await self.load_extension('src.redditapi_utils')
         #await self.load_extension('testingimagechat') #formerly supercoolawesome
         await self.load_extension('src.ttsmsglistener')
 
@@ -115,11 +116,6 @@ async def ping(interaction):
     await interaction.response.send_message(f"Response time: {bot_latency}ms.")
 
 
-@client.tree.command(name="time", description="the local time of any place!")
-async def time(interaction: discord.Interaction, location: str):
-    thetimeinplace = await locationinfo.gettime(location)
-    print(thetimeinplace)
-    await interaction.response.send_message(thetimeinplace)
 
 
 
@@ -127,36 +123,7 @@ async def time(interaction: discord.Interaction, location: str):
 async def ping(interaction):
     await interaction.response.send_message(f"https://www.youtube.com/watch?v=hk0s-l7GDT0")
 
-#===========================================================
-# Weather
-#========
-@client.tree.command(name="weather", description="your local weather, right now")
-async def weather(interaction: discord.Interaction, place: str,  time: str = None):
 
-    await interaction.response.defer()#wait longer than 3 seconds ty
-
-    something = await locationinfo.get_weather(place)
-    print(something)
-    await interaction.followup.send(something)
-
-    #if layout is None:
-    #    weathermsg = await locations.createweatherembedboxes(place)
-    #else:
-    #    weathermsg = await locations.createweatherembedline(place)
-#
-    #if isinstance(weathermsg, discord.Embed):
-    #    await interaction.followup.send(embed=weathermsg)
-    #elif weathermsg == 1: #error with search query
-    #    await interaction.followup.send(f"**{place}** could not be found in the search.\n"
-    #                                    "\nThis message will now self descruct")
-    #    await asyncio.sleep(5)
-    #    await interaction.delete_original_response()
-    #elif weathermsg == 2: #error with retrieving data
-    #    await interaction.followup.send(f"Unable to retrieve weather data. The weather service might be down.\n"
-    #                                     "\nThis message will now self descruct")
-    #    await asyncio.sleep(5)
-    #    await interaction.delete_original_response()
-            
 #===========================================================
 # dm testing
 #===========
