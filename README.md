@@ -5,6 +5,7 @@ The bot includes commands to fetch the current time for any location worldwide a
 
 ![](https://github.com/RowsOfCrows/DiscordBot/blob/main/.github/images/Time_Command_Demo.png)
 
-![](https://github.com/Relevant-Name/DiscordBot/blob/main/.github/images/DicordBot_Weather_Example.png)
+![](https://github.com/Relevant-Name/DiscordBot/blob/main/.github/images/DicordBot_Weather_Example.png) 
 
+![](https://github.com/RowsOfCrows/DiscordBot/blob/main/.github/images/calendar_demo.png)
 
